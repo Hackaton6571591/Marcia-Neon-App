@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
-from . import agenda, ia, importar, launcher, logos, mercadopago, vendedor
+from . import agenda, gcal, ia, importar, launcher, logos, mercadopago, vendedor
 from .blueprints import ALIAS_CHIPS, BLUEPRINTS
 
 BASE = Path(__file__).parent
@@ -65,13 +65,14 @@ def init_db():
         """)
         if "deshacer" not in [r[1] for r in c.execute("PRAGMA table_info(sesiones)")]:
             c.execute("ALTER TABLE sesiones ADD COLUMN deshacer TEXT")
+        c.execute("CREATE TABLE IF NOT EXISTS google(negocio_id INT PRIMARY KEY, refresh_token TEXT, access_token TEXT, expira INT, email TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS secretos(negocio_id INT PRIMARY KEY, proveedor TEXT, api_key TEXT, modelo TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS chats(id TEXT PRIMARY KEY, negocio_id INT, estado TEXT, historia TEXT, mensajes INT DEFAULT 0, creado INT)")
         cols = [r[1] for r in c.execute("PRAGMA table_info(pedidos)")]
         if "pago" not in cols:
             c.execute("ALTER TABLE pedidos ADD COLUMN pago TEXT")
         for col, tipo in (("pagado", "INT DEFAULT 0"), ("seguimiento", "TEXT"), ("historial", "TEXT"), ("actualizado", "INT"),
-                          ("profesional", "TEXT")):
+                          ("profesional", "TEXT"), ("gcal_id", "TEXT")):
             if col not in cols:
                 c.execute(f"ALTER TABLE pedidos ADD COLUMN {col} {tipo}")
         c.execute("UPDATE pedidos SET pagado=1, estado='nuevo' WHERE estado='pagado'")
@@ -509,7 +510,7 @@ def _turnero(row, d, bp, e, texto) -> str | None:
             e["_mostrar"] = list(range(min(6, len(d["items"]))))
             return "¡Claro! ¿Para qué servicio querés el turno? Elegí uno 👇 y te muestro los horarios libres."
     e["servicio_turno"] = servicio
-    oc = _ocupados(row["id"], d)
+    oc = _ocupados(row["id"], d, _proximas_fechas(7) if _google_conectado(row["id"]) else None)
     fecha = _fecha_pedida(texto) or (e.get("fecha_turno") if re.search(r"\ba las? \d|antes de|despues de|después de", texto, re.I) else None)
     if fecha:
         e["fecha_turno"] = fecha  # contexto: "a las 19, ¿tenés?" se refiere al día que ya se habló
@@ -634,12 +635,21 @@ def _duracion(d: dict, detalle: list[dict]) -> int:
     return sum(dur.get(x["nombre"], 30) * x["cantidad"] for x in detalle)
 
 
-def _ocupados(negocio_id: int, d: dict) -> list[tuple]:
-    """Turnos que ocupan agenda: (cuando, duración, profesional). Los cancelados liberan el horario."""
+def _ocupados(negocio_id: int, d: dict, fechas: list[str] | None = None) -> list[tuple]:
+    """Turnos que ocupan agenda: (cuando, duración, profesional). Los cancelados liberan el horario.
+    Con `fechas`, suma lo ocupado en el Google Calendar del negocio (si lo conectó) esos días."""
     with db() as c:
         rows = c.execute("SELECT cuando, detalle, profesional FROM pedidos WHERE negocio_id=? AND tipo='turnos' "
                          "AND estado NOT IN ('cancelado') AND cuando != ''", (negocio_id,)).fetchall()
-    return [(r["cuando"], _duracion(d, json.loads(r["detalle"])), r["profesional"] or "") for r in rows]
+    oc = [(r["cuando"], _duracion(d, json.loads(r["detalle"])), r["profesional"] or "") for r in rows]
+    for f in fechas or []:
+        oc += gcal.ocupados(db, negocio_id, f)
+    return oc
+
+
+def _proximas_fechas(n: int = 7) -> list[str]:
+    from datetime import datetime, timedelta
+    return [(datetime.now() + timedelta(days=k)).strftime("%Y-%m-%d") for k in range(n)]
 
 
 def _indice_servicio(d: dict, detalle: list[dict]) -> int:
@@ -654,7 +664,7 @@ def _validar_turno(negocio_id: int, d: dict, detalle: list[dict], cuando: str, p
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}", cuando):
         raise HTTPException(400, "Elegí día y horario para el turno.")
     servicio = _indice_servicio(d, detalle)
-    lib = agenda.libres(d, _ocupados(negocio_id, d), servicio, cuando[:10], profesional or None)
+    lib = agenda.libres(d, _ocupados(negocio_id, d, [cuando[:10]]), servicio, cuando[:10], profesional or None)
     slot = next((x for x in lib if x["hora"] == cuando[11:16]), None)
     if not slot:
         raise HTTPException(409, "Ese horario ya no está disponible 😕 Elegí otro de la lista.")
@@ -670,7 +680,8 @@ def disponibilidad(slug: str, servicio: int = 0, fecha: str = Query("", pattern=
     dias = agenda.proximos_dias(d, oc, servicio, prof or None)
     if not fecha:
         fecha = next((x["fecha"] for x in dias if x["libres"]), dias[0]["fecha"])
-    return {"fecha": fecha, "dias": dias, "libres": agenda.libres(d, oc, servicio, fecha, prof or None), "profesionales": pros}
+    oc_dia = _ocupados(row["id"], d, [fecha])
+    return {"fecha": fecha, "dias": dias, "libres": agenda.libres(d, oc_dia, servicio, fecha, prof or None), "profesionales": pros}
 
 
 @app.get("/api/n/{slug}/ocupados")
@@ -697,8 +708,51 @@ def cancelar_cliente(slug: str, pid: int, k: str = ""):
         c.execute("UPDATE pedidos SET estado='cancelado', historial=?, actualizado=? WHERE id=?",
                   (json.dumps(p["historial"] + [{"estado": "cancelado", "ts": ahora, "por": "cliente"}]), ahora, pid))
     p2 = _pedido_publico(pid)
+    gcal.borrar_evento(db, row["id"], p2.get("gcal_id"))
     _webhook(d, "pedido.estado", p2)
     return {"ok": True, "estado": "cancelado"}
+
+
+def _google_conectado(negocio_id: int) -> dict | None:
+    with db() as c:
+        r = c.execute("SELECT email FROM google WHERE negocio_id=? AND refresh_token != ''", (negocio_id,)).fetchone()
+    return dict(r) if r else None
+
+
+@app.get("/api/panel/{slug}/google")
+def google_estado(slug: str, t: str = ""):
+    row, d, bp = _auth(slug, t)
+    con = _google_conectado(row["id"])
+    return {"disponible": gcal.activo(), "conectado": bool(con), "email": (con or {}).get("email", ""),
+            "url": gcal.url_conexion(slug, row["token_admin"]) if gcal.activo() and not con else None}
+
+
+@app.delete("/api/panel/{slug}/google")
+def google_desconectar(slug: str, t: str = ""):
+    row, d, bp = _auth(slug, t)
+    with db() as c:
+        c.execute("DELETE FROM google WHERE negocio_id=?", (row["id"],))
+    return {"conectado": False}
+
+
+@app.get("/oauth/google/callback")
+def google_callback(code: str = "", state: str = "", error: str = ""):
+    from fastapi.responses import RedirectResponse
+    slug = state.split(".", 1)[0]
+    with db() as c:
+        r = c.execute("SELECT id, token_admin FROM negocios WHERE slug=?", (slug,)).fetchone()
+    if not r or not gcal.verificar(state, r["token_admin"]):
+        raise HTTPException(400, "Solicitud inválida")
+    if error or not code:
+        return RedirectResponse(f"/panel/{slug}?t={r['token_admin']}&google=cancelado")
+    try:
+        tk = gcal.canjear_codigo(code)
+    except Exception:
+        return RedirectResponse(f"/panel/{slug}?t={r['token_admin']}&google=error")
+    with db() as c:
+        c.execute("INSERT OR REPLACE INTO google(negocio_id, refresh_token, access_token, expira, email) VALUES(?,?,?,?,?)",
+                  (r["id"], tk["refresh_token"], tk["access_token"], tk["expira"], tk["email"]))
+    return RedirectResponse(f"/panel/{slug}?t={r['token_admin']}&google=ok")
 
 
 class AgendaCfg(BaseModel):
@@ -904,6 +958,8 @@ def cambiar_estado(slug: str, pid: int, body: CambioEstado, t: str = ""):
             if cambio:
                 c.execute("UPDATE negocios SET datos=? WHERE id=?", (json.dumps(d, ensure_ascii=False), row["id"]))
     p = _pedido_publico(pid)
+    if body.estado == "cancelado":
+        gcal.borrar_evento(db, row["id"], p.get("gcal_id"))
     _webhook(d, "pedido.estado", p)
     return p
 

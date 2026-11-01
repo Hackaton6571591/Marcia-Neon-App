@@ -205,7 +205,13 @@ code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(-
       <p class="muted" style="margin-top:0">Agregá este link en tu calendario y vas a ver cada turno nuevo automáticamente. Es privado: no lo compartas.</p>
       <input readonly id="ics" onclick="this.select()">
       <div class="acts"><button class="btn btn-neon" id="copyIcs">Copiar link</button><span class="msg" id="icsMsg"></span></div>
-      <p class="muted" style="font-size:.85rem;margin-bottom:0"><b>Google Calendar:</b> Otros calendarios → + → Desde URL → pegar.<br><b>iPhone/Mac:</b> Calendario → Archivo → Nueva suscripción.<br><b>Outlook:</b> Agregar calendario → Suscribirse desde la web.<br>Próximamente: sincronización en las dos direcciones con Google Calendar (bloquear horarios desde tu agenda).</p>
+      <p class="muted" style="font-size:.85rem;margin-bottom:0"><b>Google Calendar:</b> Otros calendarios → + → Desde URL → pegar.<br><b>iPhone/Mac:</b> Calendario → Archivo → Nueva suscripción.<br><b>Outlook:</b> Agregar calendario → Suscribirse desde la web.<br>⚠️ Las suscripciones se actualizan cada algunas horas. Para tiempo real usá la conexión con Google 👇</p>
+    </div>
+    <div class="box card" id="gBox">
+      <h3>🗓️ Google Calendar en tiempo real <span class="tag" id="gTag">API</span></h3>
+      <p class="muted" style="margin-top:0">Conectá tu cuenta de Google: cada turno se crea al instante en tu calendario (y se borra si se cancela), y lo que tengas ocupado en tu calendario <b>se bloquea</b> en tu agenda online.</p>
+      <div id="gEstado" class="muted">Cargando…</div>
+      <div class="acts" id="gActs"></div>
     </div>
     {% endif %}
     <div class="box card pay">
@@ -383,6 +389,11 @@ $('#dSave').onclick=async()=>{try{const j=await api('despacho',{method:'PUT',hea
 if($('#expCsv')){$('#expCsv').href=`/api/panel/${SLUG}/exportar?formato=csv&t=${encodeURIComponent(T)}`;$('#expJson').href=`/api/panel/${SLUG}/exportar?formato=json&t=${encodeURIComponent(T)}`}
 $('#saveInfo').onclick=async()=>{const v=id=>{const el=$(id);return el?el.value:''};
   try{await api('info',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({direccion:v('#iDir'),envio:v('#iEnv'),demora:v('#iDem'),condiciones:v('#iCon'),faq:v('#iFaq')})});msg($('#infoMsg'),'✓ Guardado',1)}catch(e){msg($('#infoMsg'),e.message)}};
+async function gCargar(){if(!$('#gBox'))return;try{const j=await api('google');
+  if(!j.disponible){$('#gEstado').innerHTML='Disponible cuando el administrador de Marcia active la integración con Google (credenciales de Google Cloud en el servidor). Mientras tanto, usá el link de suscripción de arriba.';$('#gActs').innerHTML='';return}
+  if(j.conectado){$('#gTag').innerHTML='<i></i>Conectado';$('#gEstado').innerHTML=`✅ Conectado con <b>${j.email||'tu cuenta de Google'}</b>. Tus turnos se sincronizan en tiempo real.`;$('#gActs').innerHTML='<button class="btn btn-ghost" id="gOff">Desconectar</button>';$('#gOff').onclick=async()=>{await api('google',{method:'DELETE'});gCargar()}}
+  else{$('#gEstado').textContent='No conectado.';$('#gActs').innerHTML=`<a class="btn btn-neon" href="${j.url}">Conectar con Google Calendar</a>`}}catch(e){}}
+gCargar();
 $('#savePay').onclick=async()=>{
   try{await api('pagos',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({efectivo:$('#pEf').checked,mp:$('#pMpOn').checked,mercadopago:$('#pMp').value,transferencia:$('#pTr').value})});
     msg($('#payMsg'),'✓ Guardado',1)}catch(e){msg($('#payMsg'),e.message)}

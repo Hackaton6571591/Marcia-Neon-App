@@ -162,8 +162,8 @@ async function publicar(){
   const r=await fetch(`/api/launcher/sesion/${S}/publicar`,{method:'POST'}); const j=await r.json();
   if(!r.ok){add('err',esc(j.detail||'Error'));$('#pubBtn').disabled=false;$('#pubBtn').textContent='🚀 Publicar';return}
   const url=location.origin+j.url;
-  add('a',md(`🎉 **¡Tu solución está online!**\nCompartí este link con tus clientes y Marcia empieza a atender:\n${url}\n\nTus pedidos van a llegar a tu panel (guardá ese link, es privado).`));
-  $('#pub').innerHTML=`<div class="done" style="width:100%"><a class="btn btn-neon" href="${esc(j.url)}" target="_blank">Ver mi página →</a><a class="btn btn-ghost" href="${esc(j.url_panel)}" target="_blank">📊 Abrir mi panel</a><button class="btn btn-ghost" id="nueva">✨ Crear otra solución</button></div>`;
+  add('a',md(`🎉 **¡Tu solución está online!**\nCompartí este link con tus clientes y Marcia empieza a atender:\n${url}\n\nTus pedidos van a llegar a tu panel. Creá tu cuenta para entrar siempre con tu email y contraseña 🔒`));
+  $('#pub').innerHTML=`<div class="done" style="width:100%"><a class="btn btn-neon" href="${esc(j.url)}" target="_blank">Ver mi página →</a>${j.url_cuenta?`<a class="btn btn-neon" href="${esc(j.url_cuenta)}">🔒 Crear mi cuenta (email y contraseña)</a>`:''}<a class="btn btn-ghost" href="${esc(j.url_panel)}" target="_blank">📊 Abrir mi panel</a><button class="btn btn-ghost" id="nueva">✨ Crear otra solución</button></div>`;
   if(matchMedia('(max-width:860px)').matches)document.querySelector('.tabs [data-t=prev]').click();
   $('#nueva').onclick=()=>{try{localStorage.removeItem('marcia_sesion')}catch(e){};location.href='/crear'};
   try{localStorage.removeItem('marcia_sesion')}catch(e){}

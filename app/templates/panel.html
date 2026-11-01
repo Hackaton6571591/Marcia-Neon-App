@@ -81,7 +81,8 @@ code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(-
   .box{padding:16px}.acts .btn{flex:1}
 }
 </style></head><body>
-<div class="top"><a class="logo" href="/">Marcia <span class="grad">Neon</span></a><a class="btn btn-ghost" href="/n/{{ slug }}" target="_blank">Ver mi tienda ↗</a></div>
+<div class="top"><a class="logo" href="{{ '/mis-negocios' if usuario else '/' }}">Marcia <span class="grad">Neon</span></a><div style="display:flex;gap:8px"><a class="btn btn-ghost" href="/n/{{ slug }}" target="_blank">Ver mi tienda ↗</a>{% if usuario %}<button class="btn btn-ghost" id="salirBtn" title="{{ usuario.email }}">Salir</button>{% endif %}</div></div>
+{% if sin_cuenta %}<div style="max-width:1000px;margin:12px auto 0;padding:0 16px"><div class="card" style="padding:14px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;border-color:rgba(255,176,32,.45);background:rgba(255,176,32,.07)"><span style="flex:1;min-width:220px">🔒 <b>Protegé tu panel:</b> creá tu usuario y contraseña. Hoy entrás con un link privado; con tu cuenta vas a entrar con email y clave.</span><a class="btn btn-neon" href="/ingresar?registro=1&slug={{ slug }}&t={{ token }}">Crear mi cuenta</a><a class="btn btn-ghost" href="/ingresar?slug={{ slug }}&t={{ token }}">Ya tengo cuenta</a></div></div>{% endif %}
 <div class="wrap">
   <span class="tag"><i></i>Panel privado de tu negocio</span>
   <h1>{{ d.nombre }}</h1>
@@ -394,6 +395,7 @@ async function gCargar(){if(!$('#gBox'))return;try{const j=await api('google');
   if(j.conectado){$('#gTag').innerHTML='<i></i>Conectado';$('#gEstado').innerHTML=`✅ Conectado con <b>${j.email||'tu cuenta de Google'}</b>. Tus turnos se sincronizan en tiempo real.`;$('#gActs').innerHTML='<button class="btn btn-ghost" id="gOff">Desconectar</button>';$('#gOff').onclick=async()=>{await api('google',{method:'DELETE'});gCargar()}}
   else{$('#gEstado').textContent='No conectado.';$('#gActs').innerHTML=`<a class="btn btn-neon" href="${j.url}">Conectar con Google Calendar</a>`}}catch(e){}}
 gCargar();
+if($('#salirBtn'))$('#salirBtn').onclick=async()=>{await fetch('/api/cuenta/salir',{method:'POST'});location.href='/ingresar'};
 $('#savePay').onclick=async()=>{
   try{await api('pagos',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({efectivo:$('#pEf').checked,mp:$('#pMpOn').checked,mercadopago:$('#pMp').value,transferencia:$('#pTr').value})});
     msg($('#payMsg'),'✓ Guardado',1)}catch(e){msg($('#payMsg'),e.message)}

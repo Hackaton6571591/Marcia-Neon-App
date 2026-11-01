@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Mis negocios · Marcia Neon</title><meta name="robots" content="noindex">
+<link rel="stylesheet" href="/static/marcia.css?v=3"><meta name="theme-color" content="#07060f">
+<style>
+.wrap{max-width:720px;margin:0 auto;padding:24px max(16px,env(safe-area-inset-right,0px)) 40px max(16px,env(safe-area-inset-left,0px))}
+.neg{display:flex;align-items:center;gap:14px;padding:14px;margin-bottom:10px}
+.neg img,.neg .ava{width:52px;height:52px;border-radius:14px;object-fit:contain;background:#fff;padding:4px;flex:none}
+.neg .t{flex:1;min-width:0}.neg b{display:block}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+</style></head><body>
+<div class="top"><a class="logo" href="/">Marcia <span class="grad">Neon</span></a><button class="btn btn-ghost" id="salir">Salir</button></div>
+<div class="wrap">
+  <h1 style="margin:0 0 4px">Hola, {{ u.nombre }} 👋</h1>
+  <p class="muted" style="margin:0 0 18px">{{ u.email }}</p>
+  {% for n in negocios %}
+  <div class="neg card">
+    {% if n.logo %}<img src="{{ n.logo }}" alt="">{% else %}<div class="ava">{{ (n.nombre or '?')[:1]|upper }}</div>{% endif %}
+    <div class="t"><b>{{ n.nombre }}</b><span class="muted">{{ (bps.get(n.blueprint) or {}).get('nombre','') }}</span></div>
+    <div class="acts"><a class="btn btn-neon" href="/panel/{{ n.slug }}">Panel</a><a class="btn btn-ghost" href="/n/{{ n.slug }}" target="_blank">Tienda ↗</a></div>
+  </div>
+  {% else %}
+  <div class="card" style="padding:24px;text-align:center"><p class="muted">Todavía no tenés negocios en tu cuenta.</p></div>
+  {% endfor %}
+  <a class="btn btn-ghost" href="/crear" style="width:100%;margin-top:8px">✨ Crear otro negocio con Marcia</a>
+</div>
+<script>document.getElementById('salir').onclick=async()=>{await fetch('/api/cuenta/salir',{method:'POST'});location.href='/ingresar'}</script>
+</body></html>

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ingresar · Marcia Neon</title><meta name="robots" content="noindex">
+<link rel="stylesheet" href="/static/marcia.css?v=3"><meta name="theme-color" content="#07060f">
+<style>
+.wrap{max-width:420px;margin:0 auto;padding:36px max(16px,env(safe-area-inset-right,0px)) 40px max(16px,env(safe-area-inset-left,0px))}
+.box{padding:22px}
+h1{margin:0 0 6px;font-size:1.7rem;letter-spacing:-.02em}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:18px 0;padding:4px;border-radius:999px;background:#0d0b1a;border:1px solid var(--line)}
+.tabs button{border:0;border-radius:999px;padding:10px;font:inherit;font-weight:700;background:none;color:var(--muted);cursor:pointer}
+.tabs button.on{background:var(--grad);color:#0b0716}
+form{display:grid;gap:10px}
+.err{color:#ff8fab;font-size:.9rem;min-height:1.2em}
+.aviso{padding:12px 14px;border-radius:14px;border:1px solid rgba(182,255,61,.35);background:rgba(182,255,61,.06);font-size:.9rem;margin-bottom:12px}
+</style></head><body>
+<div class="top"><a class="logo" href="/">Marcia <span class="grad">Neon</span></a></div>
+<div class="wrap">
+  <h1>{{ 'Creá tu cuenta' if registro else 'Ingresá a tu panel' }}</h1>
+  <p class="muted" style="margin:0">Entrá con tu email y contraseña para administrar tus negocios.</p>
+  {% if slug %}<div class="aviso" style="margin-top:14px">🔒 Vas a asociar el negocio <b>{{ slug }}</b> a tu cuenta. Desde ahí entrás con tu usuario y contraseña (el link privado anterior deja de funcionar).</div>{% endif %}
+  <div class="tabs"><button type="button" data-m="in" class="{{ '' if registro else 'on' }}">Ingresar</button><button type="button" data-m="reg" class="{{ 'on' if registro else '' }}">Crear cuenta</button></div>
+  <div class="box card">
+    <form id="f">
+      <input name="nombre" placeholder="Tu nombre" autocomplete="name" maxlength="60" {{ '' if registro else 'hidden' }}>
+      <input name="email" type="email" placeholder="Email" autocomplete="email" required maxlength="254">
+      <input name="clave" type="password" placeholder="Contraseña (mínimo 8)" autocomplete="current-password" required minlength="8" maxlength="128">
+      <div class="err" id="err"></div>
+      <button class="btn btn-neon" id="go">{{ 'Crear cuenta' if registro else 'Ingresar' }}</button>
+    </form>
+  </div>
+  <p class="muted" style="text-align:center;font-size:.9rem;margin-top:16px">¿No tenés negocio todavía? <a href="/crear">Crealo con Marcia</a></p>
+</div>
+<script>
+(()=>{
+let modo={{ 'reg' if registro else 'in' }}==='reg'?'reg':'in';
+const f=document.getElementById('f'), SLUG={{ slug|tojson }}, T={{ t|tojson }};
+const NEXT=new URLSearchParams(location.search).get('next');
+function pintar(){document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.m===modo));
+  f.nombre.hidden=modo!=='reg';f.nombre.required=modo==='reg';f.clave.autocomplete=modo==='reg'?'new-password':'current-password';
+  document.getElementById('go').textContent=modo==='reg'?'Crear cuenta':'Ingresar';document.querySelector('h1').textContent=modo==='reg'?'Creá tu cuenta':'Ingresá a tu panel'}
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{modo=b.dataset.m;pintar()});pintar();
+f.onsubmit=async e=>{e.preventDefault();const err=document.getElementById('err');err.textContent='';
+  const body={email:f.email.value,clave:f.clave.value,slug:SLUG,t:T};if(modo==='reg')body.nombre=f.nombre.value;
+  try{const r=await fetch(modo==='reg'?'/api/cuenta/registro':'/api/cuenta/ingresar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const j=await r.json();if(!r.ok){err.textContent=typeof j.detail==='string'?j.detail:'Revisá los datos (contraseña de 8 caracteres o más).';return}
+    location.href=(NEXT&&NEXT.startsWith('/panel/'))?NEXT:j.redirect}catch(e){err.textContent='Sin conexión, probá de nuevo.'}};
+})();
+</script></body></html>

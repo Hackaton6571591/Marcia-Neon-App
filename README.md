@@ -32,6 +32,8 @@ Python 3.12 · FastAPI · SQLite (WAL) · HTML/CSS/JS nativo · Caddy · systemd
 - [docs/servidor.md](docs/servidor.md): server, usuario y entorno.
 - [docs/bitacora.md](docs/bitacora.md): registro cronológico de todo lo que se hace.
 - [docs/vision-producto.md](docs/vision-producto.md): visión del producto (ecommerce + CRM + chatbot + WhatsApp) y estado por funcionalidad.
+- [docs/cuentas.md](docs/cuentas.md): usuario y contraseña para los negocios.
+- [docs/google-calendar.md](docs/google-calendar.md): sincronización con Google Calendar por API.
 - [docs/deepseek.md](docs/deepseek.md): **DeepSeek integrado** y tutorial para que cada negocio conecte su propia API key.
 - [docs/vendedor-virtual.md](docs/vendedor-virtual.md): chatbot vendedor de cada tienda (proceso de venta, IA, seguridad).
 - [docs/launcher.md](docs/launcher.md): implementación del launcher, IA, API y pruebas.

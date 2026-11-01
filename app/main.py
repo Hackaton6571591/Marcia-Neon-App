@@ -65,6 +65,10 @@ def init_db():
         """)
         if "deshacer" not in [r[1] for r in c.execute("PRAGMA table_info(sesiones)")]:
             c.execute("ALTER TABLE sesiones ADD COLUMN deshacer TEXT")
+        c.execute("CREATE TABLE IF NOT EXISTS usuarios(id INTEGER PRIMARY KEY, email TEXT UNIQUE, nombre TEXT, hash TEXT, creado INT)")
+        c.execute("CREATE TABLE IF NOT EXISTS sesiones_web(token TEXT PRIMARY KEY, usuario_id INT, expira INT)")
+        if "usuario_id" not in [r[1] for r in c.execute("PRAGMA table_info(negocios)")]:
+            c.execute("ALTER TABLE negocios ADD COLUMN usuario_id INT")
         c.execute("CREATE TABLE IF NOT EXISTS google(negocio_id INT PRIMARY KEY, refresh_token TEXT, access_token TEXT, expira INT, email TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS secretos(negocio_id INT PRIMARY KEY, proveedor TEXT, api_key TEXT, modelo TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS chats(id TEXT PRIMARY KEY, negocio_id INT, estado TEXT, historia TEXT, mensajes INT DEFAULT 0, creado INT)")
@@ -234,9 +238,11 @@ def publicar(sid: str, request: Request):
         token = secrets.token_urlsafe(16)
         if d.get("blueprint") == "turnos" and not d.get("agenda"):
             d["agenda"] = agenda.parse_horarios(d.get("horarios", "")) or agenda.DEFECTO
-        c.execute("INSERT INTO negocios(slug,datos,token_admin,creado) VALUES(?,?,?,?)",
-                  (slug, json.dumps(d, ensure_ascii=False), token, int(time.time())))
-    return {"slug": slug, "url": f"/n/{slug}", "url_panel": f"/panel/{slug}?t={token}"}
+        u = usuario_actual(request)
+        c.execute("INSERT INTO negocios(slug,datos,token_admin,creado,usuario_id) VALUES(?,?,?,?,?)",
+                  (slug, json.dumps(d, ensure_ascii=False), token, int(time.time()), u["id"] if u else None))
+    return {"slug": slug, "url": f"/n/{slug}", "url_panel": f"/panel/{slug}" if u else f"/panel/{slug}?t={token}",
+            "con_cuenta": bool(u), "url_cuenta": None if u else f"/ingresar?registro=1&slug={slug}&t={token}"}
 
 
 # ---------- solución publicada ----------
@@ -853,7 +859,14 @@ def _pagos(d: dict) -> dict:
 @app.get("/panel/{slug}", response_class=HTMLResponse)
 def panel(request: Request, slug: str, t: str = ""):
     row, d, bp = _negocio(slug)
-    if not secrets.compare_digest(t, row["token_admin"]):
+    u = usuario_actual(request)
+    if row["usuario_id"]:  # negocio con cuenta: se entra con usuario y contraseña
+        if not u:
+            return RedirectResponse(f"/ingresar?next=/panel/{slug}")
+        if u["id"] != row["usuario_id"]:
+            raise HTTPException(403, "Este negocio pertenece a otra cuenta.")
+        t = row["token_admin"]
+    elif not secrets.compare_digest(t, row["token_admin"]):
         raise HTTPException(403, "Link de panel inválido")
     with db() as c:
         peds = [dict(r) | {"detalle": json.loads(r["detalle"])} for r in
@@ -862,7 +875,8 @@ def panel(request: Request, slug: str, t: str = ""):
                                                          "token": t, "pagos_cfg": d.get("pagos") or {"efectivo": True, "mp": True},
                                                          "agenda_cfg": agenda.config(d), "profesionales": agenda.profesionales(d),
                                                          "mp_activo": mercadopago.activo(),
-                                                         "despacho": d.get("despacho") or {}, "webhook": d.get("webhook") or {}})
+                                                         "despacho": d.get("despacho") or {}, "webhook": d.get("webhook") or {},
+                                                         "sin_cuenta": not row["usuario_id"], "usuario": u})
 
 
 # ---------- gestión profesional de pedidos ----------
@@ -990,6 +1004,132 @@ def guardar_despacho(slug: str, w: Webhook, t: str = ""):
     d["despacho"] = {"whatsapp": re.sub(r"[^\d]", "", w.cocina_whatsapp), "email": w.cocina_email.strip()}
     _guardar(row["id"], d)
     return {"webhook": url, "secreto": d["webhook"]["secreto"], **d["despacho"]}
+
+
+# ---------- cuentas: usuario y contraseña para los negocios ----------
+
+import hashlib as _hl
+from fastapi.responses import JSONResponse, RedirectResponse
+
+COOKIE = "marcia_sesion"
+EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,190}\.[a-z]{2,}$", re.I)
+
+
+def _hash_clave(clave: str, sal: bytes | None = None) -> str:
+    sal = sal or secrets.token_bytes(16)
+    h = _hl.scrypt(clave.encode(), salt=sal, n=2 ** 14, r=8, p=1, dklen=32)
+    return f"scrypt${sal.hex()}${h.hex()}"
+
+
+def _verificar_clave(clave: str, guardado: str) -> bool:
+    try:
+        _, sal, h = guardado.split("$")
+        return secrets.compare_digest(_hash_clave(clave, bytes.fromhex(sal)), guardado)
+    except Exception:
+        return False
+
+
+def usuario_actual(request: Request) -> dict | None:
+    tok = request.cookies.get(COOKIE, "")
+    if not tok:
+        return None
+    with db() as c:
+        r = c.execute("SELECT u.id, u.email, u.nombre FROM sesiones_web s JOIN usuarios u ON u.id=s.usuario_id "
+                      "WHERE s.token=? AND s.expira>?", (_hl.sha256(tok.encode()).hexdigest(), int(time.time()))).fetchone()
+    return dict(r) if r else None
+
+
+def _iniciar_sesion(resp, usuario_id: int):
+    tok = secrets.token_urlsafe(32)
+    with db() as c:  # se guarda solo el hash del token de sesión
+        c.execute("INSERT INTO sesiones_web(token, usuario_id, expira) VALUES(?,?,?)",
+                  (_hl.sha256(tok.encode()).hexdigest(), usuario_id, int(time.time()) + 30 * 86400))
+    resp.set_cookie(COOKIE, tok, max_age=30 * 86400, httponly=True, secure=True, samesite="lax", path="/")
+
+
+def _reclamar(usuario_id: int, slug: str, t: str) -> bool:
+    """Asocia un negocio (sin dueño) a la cuenta, verificando su link privado. Rota la clave del link."""
+    with db() as c:
+        r = c.execute("SELECT id, token_admin, usuario_id FROM negocios WHERE slug=?", (slug,)).fetchone()
+        if not r or r["usuario_id"] or not t or not secrets.compare_digest(t, r["token_admin"]):
+            return False
+        c.execute("UPDATE negocios SET usuario_id=?, token_admin=? WHERE id=?", (usuario_id, secrets.token_urlsafe(16), r["id"]))
+    return True
+
+
+class Registro(BaseModel):
+    nombre: str = Field(..., min_length=2, max_length=60)
+    email: str = Field(..., max_length=254)
+    clave: str = Field(..., min_length=8, max_length=128)
+    slug: str = Field("", max_length=60)
+    t: str = Field("", max_length=60)
+
+
+class Ingreso(BaseModel):
+    email: str = Field(..., max_length=254)
+    clave: str = Field(..., max_length=128)
+    slug: str = Field("", max_length=60)
+    t: str = Field("", max_length=60)
+
+
+@app.post("/api/cuenta/registro")
+def registro(body: Registro, request: Request):
+    limitar(request, 5, "registro")
+    email = body.email.strip().lower()
+    if not EMAIL_RE.match(email):
+        raise HTTPException(400, "Revisá el email.")
+    with db() as c:
+        if c.execute("SELECT 1 FROM usuarios WHERE email=?", (email,)).fetchone():
+            raise HTTPException(400, "Ya existe una cuenta con ese email. Ingresá con tu contraseña.")
+        cur = c.execute("INSERT INTO usuarios(email, nombre, hash, creado) VALUES(?,?,?,?)",
+                        (email, body.nombre.strip(), _hash_clave(body.clave), int(time.time())))
+    uid = cur.lastrowid
+    reclamado = _reclamar(uid, body.slug, body.t) if body.slug else False
+    resp = JSONResponse({"ok": True, "redirect": f"/panel/{body.slug}" if reclamado else "/mis-negocios"})
+    _iniciar_sesion(resp, uid)
+    return resp
+
+
+@app.post("/api/cuenta/ingresar")
+def ingresar(body: Ingreso, request: Request):
+    limitar(request, 8, "ingreso")
+    with db() as c:
+        u = c.execute("SELECT id, hash FROM usuarios WHERE email=?", (body.email.strip().lower(),)).fetchone()
+    if not u or not _verificar_clave(body.clave, u["hash"]):
+        raise HTTPException(401, "Email o contraseña incorrectos.")
+    reclamado = _reclamar(u["id"], body.slug, body.t) if body.slug else False
+    resp = JSONResponse({"ok": True, "redirect": f"/panel/{body.slug}" if reclamado else "/mis-negocios"})
+    _iniciar_sesion(resp, u["id"])
+    return resp
+
+
+@app.post("/api/cuenta/salir")
+def salir(request: Request):
+    tok = request.cookies.get(COOKIE, "")
+    if tok:
+        with db() as c:
+            c.execute("DELETE FROM sesiones_web WHERE token=?", (_hl.sha256(tok.encode()).hexdigest(),))
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(COOKIE, path="/")
+    return resp
+
+
+@app.get("/ingresar", response_class=HTMLResponse)
+def pagina_ingresar(request: Request, slug: str = "", t: str = "", registro: int = 0):
+    if usuario_actual(request) and not slug:
+        return RedirectResponse("/mis-negocios")
+    return tpl.TemplateResponse(request, "cuenta.html", {"slug": slug, "t": t, "registro": registro})
+
+
+@app.get("/mis-negocios", response_class=HTMLResponse)
+def mis_negocios(request: Request):
+    u = usuario_actual(request)
+    if not u:
+        return RedirectResponse("/ingresar")
+    with db() as c:
+        negs = [{"slug": r["slug"], **{k: json.loads(r["datos"]).get(k) for k in ("nombre", "logo", "blueprint")}}
+                for r in c.execute("SELECT slug, datos FROM negocios WHERE usuario_id=? ORDER BY id DESC", (u["id"],))]
+    return tpl.TemplateResponse(request, "mis_negocios.html", {"u": u, "negocios": negs, "bps": BLUEPRINTS})
 
 
 # ---------- seguimiento del pedido (cliente) ----------

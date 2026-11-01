@@ -70,6 +70,7 @@ body{height:100dvh;display:flex;flex-direction:column;overflow:hidden}
     <div class="sug" id="sug"></div>
     <form class="composer" id="f">
       <label class="btn btn-ghost" title="Subir foto de tu menú" style="padding:0 14px;cursor:pointer">📷<input type="file" id="foto" accept="image/png,image/jpeg,image/webp" hidden></label>
+      <input type="file" id="logoIn" accept="image/png,image/jpeg,image/webp" hidden>
       <textarea id="t" placeholder="Escribile a Marcia…" maxlength="1000" rows="1"></textarea>
       <button class="btn btn-neon" id="send">Enviar</button>
     </form>
@@ -88,7 +89,7 @@ const $=s=>document.querySelector(s), msgs=$('#msgs'), t=$('#t'), f=$('#f');
 const ETAPAS=['rubro','dolor','negocio','oferta','horarios','revision'];
 const SUG={rubro:['Tengo una pizzería','Tengo una peluquería','Tengo una ferretería'],
   dolor:['Me llegan por WhatsApp y se me pierden','Atiendo por teléfono y anoto en papel'],
-  negocio:['Se llama Don Luigi, 11 5555-1234','Se llama Estilo Neón','Probar con mi web'],
+  negocio:['Se llama Don Luigi, 11 5555-1234','Probar con mi web','📸 Subir mi logo'],
   oferta:['📷 Subir foto del menú','Tengo web, te paso el link'], horarios:['Lunes a sábado de 19 a 23:30','Martes a sábado de 10 a 20'], revision:['Publicar']};
 let S=null; try{S=localStorage.getItem('marcia_sesion')}catch(e){}
 let busy=false, estado={datos:{},etapa:'rubro'};
@@ -116,8 +117,9 @@ function render(e){
   const listo=e.etapa==='revision'; $('#pubBtn').disabled=!listo;
   $('#pubTxt').textContent=listo?'¡Todo listo para publicar!':'Completá la charla para publicar.';
   const sg=$('#sug'); sg.innerHTML='';
-  (SUG[e.etapa]||[]).concat(e.etapa==='oferta'&&e.datos.blueprint?['Usar ejemplo']:[]).forEach(x=>{const b=document.createElement('button');b.type='button';b.textContent=x;
-    b.onclick=()=>{if(x==='📷 Subir foto del menú'){$('#foto').click();return} if(x==='Tengo web, te paso el link'){t.value='https://';t.focus();return} if(x==='Publicar'){publicar();return} if(x==='Probar con mi web'){t.value='https://';t.focus();return} t.value=x==='Usar ejemplo'?({restaurante:'Muzzarella 8000, Napolitana 9500, Fugazzeta 9000',turnos:'Corte 6000 30min, Color 15000 90min, Barba 4000 20min',comercio:'Martillo 12000, Caja de tornillos 3500, Cinta aisladora 1500'})[e.datos.blueprint]:x; enviar()};sg.appendChild(b)});
+  const extra=(e.respuesta&&/Subir mi logo/.test(e.respuesta)&&e.etapa!=='negocio')?['📸 Subir mi logo']:[];
+  extra.concat(SUG[e.etapa]||[]).concat(e.etapa==='oferta'&&e.datos.blueprint?['Usar ejemplo']:[]).forEach(x=>{const b=document.createElement('button');b.type='button';b.textContent=x;
+    b.onclick=()=>{if(x==='📸 Subir mi logo'){$('#logoIn').click();return} if(x==='📷 Subir foto del menú'){$('#foto').click();return} if(x==='Tengo web, te paso el link'){t.value='https://';t.focus();return} if(x==='Publicar'){publicar();return} if(x==='Probar con mi web'){t.value='https://';t.focus();return} t.value=x==='Usar ejemplo'?({restaurante:'Muzzarella 8000, Napolitana 9500, Fugazzeta 9000',turnos:'Corte 6000 30min, Color 15000 90min, Barba 4000 20min',comercio:'Martillo 12000, Caja de tornillos 3500, Cinta aisladora 1500'})[e.datos.blueprint]:x; enviar()};sg.appendChild(b)});
 }
 async function enviar(texto){
   texto=(texto??t.value).trim(); if(!texto||busy)return;
@@ -153,6 +155,9 @@ $('#foto').onchange=async ev=>{
   try{const r=await fetch(`/api/launcher/sesion/${S}/foto`,{method:'POST',headers:{'Content-Type':fl.type},body:fl});const j=await r.json();typ.remove();
     if(!r.ok){add('err',esc(j.detail||'Error'));return}add('a',md(j.respuesta));render(j)}
   catch(e){typ.remove();add('err','Sin conexión, probá de nuevo.')}finally{busy=false;ev.target.value=''}};
+$('#logoIn').onchange=async ev=>{const fl=ev.target.files[0];if(!fl||!S)return;
+  try{const r=await fetch(`/api/launcher/sesion/${S}/logo`,{method:'POST',headers:{'Content-Type':fl.type},body:fl});const j=await r.json();
+    if(!r.ok){add('err',esc(j.detail||'Error'));return}add('u','📸 Mi logo');add('a',md(j.respuesta));render(j)}catch(e){add('err','Sin conexión, probá de nuevo.')}finally{ev.target.value=''}};
 f.addEventListener('submit',e=>{e.preventDefault();enviar()});
 t.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();enviar()}});
 $('#pubBtn').onclick=publicar;

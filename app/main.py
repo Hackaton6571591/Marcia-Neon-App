@@ -854,6 +854,25 @@ async def launcher_foto(sid: str, request: Request):
     return _estado(sid, d, "deepseek", resp)
 
 
+@app.post("/api/launcher/sesion/{sid}/logo")
+async def launcher_logo(sid: str, request: Request):
+    """Subir el logo directo desde la charla del launcher."""
+    limitar(request, 10, "marca")
+    data, tipo = await _leer_foto(request)
+    with db() as c:
+        row = c.execute("SELECT datos FROM sesiones WHERE id=?", (sid,)).fetchone()
+    if not row:
+        raise HTTPException(404)
+    d = json.loads(row["datos"])
+    (DATA / "media").mkdir(exist_ok=True)
+    nombre = f"s{re.sub(r'[^a-z0-9]', '', sid)[:12]}-logo-{secrets.token_hex(3)}.{ {'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp'}[tipo] }"
+    (DATA / "media" / nombre).write_bytes(data)
+    d["logo"] = f"/media/{nombre}"
+    with db() as c:
+        c.execute("UPDATE sesiones SET datos=? WHERE id=?", (json.dumps(d, ensure_ascii=False), sid))
+    return _estado(sid, d, "simulado", "📸 ¡Listo, ya tengo tu logo! " + launcher.pregunta(d))
+
+
 @app.post("/api/panel/{slug}/foto-menu")
 async def panel_foto_menu(slug: str, request: Request, t: str = "", reemplazar: bool = False):
     limitar(request, 4, "foto")

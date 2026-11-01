@@ -236,7 +236,8 @@ async def procesar(d: dict, texto: str, historia: list[dict], sesion: str = "") 
             return d, " ".join(partes) + " " + pregunta(d), "simulado"
         if not partes and not resto:
             ig = "instagram.com" in url.lower()
-            return d, (("Instagram no deja leer perfiles sin iniciar sesión 😕 Subí tu logo desde el panel (o lo conectamos con la API oficial de Instagram). " if ig else
+            return d, (("Instagram no deja ver perfiles sin iniciar sesión, así que no pude tomar tu logo 😕 "
+                        "Tocá **📸 Subir mi logo** y listo. " if ig else
                         "No pude leer productos de ese link 😕 (algunas tiendas lo bloquean). ") + "Podés pasarme productos a mano, "
                        "subir una **foto de tu menú** 📷 o un CSV desde el panel. " + pregunta(d)), "simulado"
         texto = resto or texto

@@ -361,9 +361,13 @@ async def extraer_marca(url: str, prefijo: str) -> dict:
         out["nombre_web"] = nombre.strip()
     # Instagram / redes: og:image es la foto de perfil -> logo. En webs: ícono = logo, og:image = portada.
     es_red = re.search(r"instagram\.com|facebook\.com|tiktok\.com", url, re.I)
-    if es_red and m.get("imagen"):
-        if logo := await _bajar_imagen(m["imagen"], prefijo + "-logo"):
-            out["logo"] = logo
+    if es_red:
+        # Solo vale una FOTO DE PERFIL real (servidores de contenido de usuarios). Si la red muestra su página de
+        # login, lo que aparece es el ícono de la plataforma: se descarta (falso positivo).
+        img = m.get("imagen") or ""
+        if re.search(r"scontent|fbcdn\.net|tiktokcdn", img) and not re.search(r"static\.cdninstagram|rsrc\.php|/static/", img):
+            if logo := await _bajar_imagen(img, prefijo + "-logo"):
+                out["logo"] = logo
     else:
         for cand in (m.get("logo"), m.get("icono")):  # el logo real primero; el ícono solo de respaldo
             if cand and (logo := await _bajar_imagen(cand, prefijo + "-logo")):

@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>{{ d.nombre }} · {{ 'Turnos online' if bp.modo == 'turnos' else 'Pedidos online' }}</title>
-<link rel="stylesheet" href="/static/marcia.css">
+<link rel="stylesheet" href="/static/marcia.css?v=3">
 <link rel="manifest" href="/n/{{ slug }}/manifest.webmanifest"><meta name="theme-color" content="#07060f"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><link rel="apple-touch-icon" href="/static/icon.svg">
 <style>
 .wrap{max-width:760px;margin:0 auto;padding:20px max(16px,env(safe-area-inset-right,0px)) 130px max(16px,env(safe-area-inset-left,0px))}
@@ -48,8 +48,72 @@ h2{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cy
 .err{color:#ff8fab;font-size:.9rem;min-height:1.2em}
 .payinfo{margin:14px auto;max-width:360px;padding:12px;border-radius:14px;border:1px solid rgba(0,229,255,.35);background:rgba(0,229,255,.06);word-break:break-all}
 .foot{text-align:center;color:var(--muted);font-size:.8rem;margin-top:30px}
+/* ---- navegación tipo app de delivery ---- */
+.tb{position:sticky;top:0;z-index:15;background:rgba(7,6,15,.94);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
+.tb-in{max-width:760px;margin:0 auto;display:flex;align-items:center;gap:10px;padding:8px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px));height:56px}
+.tb-logo{height:36px;width:auto;max-width:90px;border-radius:9px;object-fit:contain;background:#fff;padding:3px}
+.tb .ava{width:34px;height:34px}
+.tb-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:1rem}
+.tb-btn{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:1rem;cursor:pointer}
+.tb-search{max-width:760px;margin:0 auto;padding:0 16px 10px}
+.tb-search input{border-radius:999px}
+.cats{top:56px!important;margin:16px -16px 0!important;background:rgba(7,6,15,.94)!important;border-bottom:1px solid var(--line)}
+.cats a.on{background:var(--grad);color:#0b0716;border-color:transparent}
+.catsec{scroll-margin-top:118px}
+.nores{padding:30px 10px;text-align:center;color:var(--muted)}
+.pic{border:0;padding:0;background:none;cursor:pointer;position:relative;flex:none;border-radius:16px;overflow:hidden}
+.txt[data-ficha]{cursor:pointer}
+.ribbon{position:absolute;left:6px;top:6px;padding:3px 8px;border-radius:999px;font-size:.7rem;font-weight:800;background:#ff6b8b;color:#1a0710}
+.ribbon.low{background:var(--lime);color:#0b1400}
+.items.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.items.grid .item{flex-direction:column;align-items:stretch;gap:0;padding:0;margin:0;overflow:hidden;position:relative}
+.items.grid .pic{border-radius:0}
+.items.grid .thumb{width:100%;height:auto;aspect-ratio:1;border-radius:0;font-size:3rem;display:grid}
+.items.grid .txt{padding:10px 56px 12px 12px;min-height:72px}
+.items.grid .n{font-size:.92rem;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.items.grid .desc{display:none}
+.items.grid .pr{margin-top:4px}
+.items.grid .qty{position:absolute;right:8px;bottom:8px;background:rgba(7,6,15,.85);border-radius:999px;padding:3px}
+.items.grid .qty button{width:40px;height:40px}
+@media(min-width:640px){.items.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.cartbtn{width:100%;justify-content:space-between;min-height:52px;font-size:1rem}
+.cnt{min-width:28px;height:28px;border-radius:999px;background:#0b0716;color:#fff;display:grid;place-items:center;font-size:.85rem;padding:0 8px}
+.ov{position:fixed;inset:0;z-index:35;background:rgba(0,0,0,.6)}
+.bs{position:fixed;z-index:36;left:50%;transform:translateX(-50%);bottom:0;width:min(560px,100%);max-height:88dvh;display:flex;flex-direction:column;background:#0b0a16;border:1px solid var(--line);border-bottom:0;border-radius:24px 24px 0 0;box-shadow:0 -20px 60px -20px #000;animation:up .25s ease;overflow:hidden;padding-bottom:env(safe-area-inset-bottom,0px)}
+.bs-tall{height:88dvh}
+@keyframes up{from{transform:translate(-50%,40px);opacity:0}}
+.bs-h{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--line)}
+.bs-x{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:rgba(7,6,15,.8);color:var(--text);font-size:1rem;cursor:pointer}
+#ficha .bs-x{position:absolute;right:12px;top:12px;z-index:2}
+.bs-scroll{flex:1;overflow-y:auto;padding:14px 16px}
+.bs-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-top:1px solid var(--line)}
+.fi-img{width:100%;max-height:44dvh;object-fit:contain;background:#fff;display:block}
+.fi-emo{height:200px;display:grid;place-items:center;font-size:5rem}
+.fi-b{padding:16px 18px;overflow-y:auto}
+.fi-b h3{margin:0 0 6px;font-size:1.25rem;letter-spacing:-.01em}
+.fi-b p{color:var(--muted);margin:0 0 12px;white-space:pre-wrap}
+.fi-act{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--line)}
+.fi-act .qty{flex:none}.fi-act .qty .rm,.fi-act .qty span{display:inline-grid!important;place-items:center}
+.fi-act .btn{flex:1}
+.ln{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px dashed var(--line)}
+.ln img,.ln .le{width:46px;height:46px;border-radius:10px;object-fit:cover;flex:none;display:grid;place-items:center;background:#141127;font-size:1.4rem}
+.ln .lt{flex:1;min-width:0}.ln .lt b{display:block;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ln .qty button{width:36px;height:36px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(92px + env(safe-area-inset-bottom,0px));z-index:50;padding:10px 16px;border-radius:999px;background:#1d1a33;border:1px solid var(--line);box-shadow:0 10px 30px -10px #000;font-weight:700;font-size:.9rem}
+@media(max-width:600px){
+  .hero{padding:14px 16px;border-radius:20px}
+  .hero .tag,.hero .brand{display:none}
+  .meta{margin-top:0}
+  .askbox{margin-top:12px}
+  .fab span{display:none}
+  .fab{width:56px;height:56px;padding:0;justify-content:center;font-size:1.5rem;animation:none}
+  .logo-img{height:52px;max-width:110px}
+  .meta{font-size:.84rem;gap:4px 12px}
+  .askbox span{font-size:.85rem}
+  .bs{width:100%;border-radius:20px 20px 0 0}
+}
 /* vendedor virtual */
-.fab{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(86px + env(safe-area-inset-bottom,0px));z-index:30;display:flex;align-items:center;gap:8px;padding:12px 18px;border-radius:999px;border:0;background:var(--grad);color:#0b0716;font:inherit;font-weight:800;cursor:pointer;box-shadow:0 10px 30px -6px rgba(255,61,203,.7);animation:pop 2.5s ease-in-out infinite}
+.fab{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(90px + env(safe-area-inset-bottom,0px));z-index:30;display:flex;align-items:center;gap:8px;padding:12px 18px;border-radius:999px;border:0;background:var(--grad);color:#0b0716;font:inherit;font-weight:800;cursor:pointer;box-shadow:0 10px 30px -6px rgba(255,61,203,.7);animation:pop 2.5s ease-in-out infinite}
 @keyframes pop{50%{transform:translateY(-3px)}}
 .sheet{position:fixed;z-index:40;right:16px;bottom:16px;width:400px;height:min(640px,calc(100dvh - 32px));display:flex;flex-direction:column;background:#0b0a16;border:1px solid var(--line);border-radius:24px;box-shadow:0 30px 80px -20px #000,0 0 60px -30px var(--pink);overflow:hidden}
 .sh-h{display:flex;align-items:center;gap:10px;padding:14px 14px 12px;padding-top:calc(14px + env(safe-area-inset-top,0px));border-bottom:1px solid var(--line)}
@@ -68,6 +132,16 @@ h2{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cy
 .quick button{flex:none;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:999px;padding:8px 13px;font:inherit;font-size:.85rem;cursor:pointer;min-height:38px}
 .cform{display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line)}
 .cform input{flex:1;border-radius:999px}
+.pcards-wrap{max-width:100%!important;padding:6px!important;background:none!important;border:0!important}
+.pcards{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;padding:2px}
+.pcard{flex:none;width:150px;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#141127;display:flex;flex-direction:column}
+.pcard.ag{opacity:.55}
+.pc-img{border:0;padding:0;background:#fff;aspect-ratio:1;width:100%;cursor:pointer;display:grid;place-items:center;font-size:2.6rem}
+.pc-img img{width:100%;height:100%;object-fit:cover}
+.pc-b{padding:8px 10px 4px;display:grid;gap:2px;white-space:normal}
+.pc-b b{font-size:.8rem;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pc-add{margin:6px 8px 8px;min-height:36px!important;padding:6px 10px!important;font-size:.85rem}
+.pc-ag{margin:6px 10px 10px;color:#ff8fab;font-weight:800;font-size:.8rem}
 .cart-pill{margin:0 12px 8px;padding:8px 12px;border-radius:12px;background:rgba(182,255,61,.08);border:1px solid rgba(182,255,61,.3);font-size:.85rem;display:flex;justify-content:space-between}
 @media(max-width:600px){
   .sheet{inset:0;width:auto;height:100dvh;border-radius:0;border:0}
@@ -75,57 +149,89 @@ h2{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cy
 }
 @media(max-width:420px){.hero{padding:22px 18px;border-radius:20px}.thumb{width:56px;height:56px;font-size:1.7rem}.item{gap:10px;padding:10px}.bar .btn{padding:11px 16px}.op{flex:1 1 calc(50% - 8px);justify-content:center}}
 </style></head><body>
+{% set con_fotos = d['items']|selectattr('imagen')|list|length > 0 %}
+<header class="tb">
+  <div class="tb-in">
+    {% if d.logo %}<img class="tb-logo" src="{{ d.logo }}" alt="">{% else %}<div class="ava">{{ d.nombre[:1]|upper }}</div>{% endif %}
+    <b class="tb-name">{{ d.nombre }}</b>
+    <button class="tb-btn" id="sBtn" aria-label="Buscar">🔍</button>
+  </div>
+  <div class="tb-search" id="sBox" hidden><input id="sIn" type="search" placeholder="Buscar en {{ d.nombre }}…" autocomplete="off" enterkeyhint="search"></div>
+</header>
 <div class="wrap" id="app">
   <div class="hero{% if d.portada %} has-cover{% endif %}"{% if d.portada %} style="--cover:url('{{ d.portada }}')"{% endif %}>
     <span class="tag"><i></i>Atendido por Marcia · respuesta al instante</span>
     <div class="brand">{% if d.logo %}<img class="logo-img" src="{{ d.logo }}" alt="Logo de {{ d.nombre }}">{% endif %}<h1>{{ d.nombre }}</h1></div>
-    <div class="muted">{{ bp.emoji }} {{ d.rubro_texto or bp.nombre }}</div>
-    <div class="meta"><span>🕒 {{ d.horarios }}</span>{% if d.telefono %}<span>📞 {{ d.telefono }}</span>{% endif %}</div>
-    <div class="askbox" data-open-chat role="button" tabindex="0"><span>💬 Preguntá o pedí escribiendo: “{{ ('quiero un turno de ' ~ ej|lower) if bp.modo == 'turnos' else ('mandame 2 de ' ~ ej|lower) }}”</span><button class="btn btn-neon" type="button">Chatear</button></div>
+    <div class="meta"><span>{{ bp.emoji }} {{ d.rubro_texto or bp.nombre }}</span><span>🕒 {{ d.horarios }}</span>{% if d.telefono %}<span>📞 {{ d.telefono }}</span>{% endif %}</div>
+    <div class="askbox" data-open-chat role="button" tabindex="0"><span>💬 “{{ ('quiero un turno de ' ~ ej|lower) if bp.modo == 'turnos' else ('mandame 2 de ' ~ ej|lower) }}”</span><button class="btn btn-neon" type="button">Pedí por chat</button></div>
   </div>
 
   {% if grupos|length > 1 %}
-  <nav class="cats">{% for cat in grupos %}<a href="#c{{ loop.index }}">{{ cat }}</a>{% endfor %}</nav>
+  <nav class="cats" id="cats">{% for cat in grupos %}<a href="#c{{ loop.index }}" data-c="c{{ loop.index }}">{{ cat }}</a>{% endfor %}</nav>
   {% endif %}
+  <div class="nores" id="nores" hidden>No encontramos productos con esa búsqueda 🤔 <button type="button" class="btn btn-ghost" data-open-chat>Preguntale al vendedor</button></div>
 
   {% for cat, lista in grupos.items() %}
-  <h2 id="c{{ loop.index }}">{{ cat }}</h2>
+  <section class="catsec" id="c{{ loop.index }}">
+  <h2>{{ cat }}</h2>
+  <div class="items{% if con_fotos %} grid{% endif %}">
   {% for i, it, il in lista %}
-  <div class="item card{% if it.get('stock') is not none and it.get('stock') <= 0 %} agotado{% endif %}">
-    {% if it.imagen %}<img class="thumb photo" src="{{ it.imagen }}" alt="{{ it.nombre }}" loading="lazy">{% else %}<div class="thumb" style="--h:{{ il.hue }}"><span>{{ il.emoji }}</span></div>{% endif %}
-    <div class="txt"><div class="n">{{ it.nombre }}</div>{% if it.descripcion %}<div class="desc">{{ it.descripcion }}</div>{% endif %}<small>{% if it.duracion_min %}{{ it.duracion_min }} min · {% endif %}<span class="price">${{ "{:,}".format(it.precio).replace(",", ".") }}</span>{% if it.get('stock') is not none and it.get('stock') <= 0 %} · <b style="color:#ff8fab">Agotado</b>{% elif it.get('stock') is not none and it.get('stock') <= 5 %} · <span style="color:var(--lime)">¡Quedan {{ it.get('stock') }}!</span>{% endif %}</small></div>
+  {% set ag = it.get('stock') is not none and it.get('stock') <= 0 %}
+  <div class="item card{% if ag %} agotado{% endif %}" data-n="{{ (it.nombre ~ ' ' ~ (it.descripcion or '') ~ ' ' ~ cat)|lower }}">
+    <button type="button" class="pic" data-ficha="{{ i }}" aria-label="Ver {{ it.nombre }}">{% if it.imagen %}<img class="thumb photo" src="{{ it.imagen }}" alt="{{ it.nombre }}" loading="lazy">{% else %}<span class="thumb" style="--h:{{ il.hue }}"><span>{{ il.emoji }}</span></span>{% endif %}{% if ag %}<span class="ribbon">Agotado</span>{% elif it.get('stock') is not none and it.get('stock') <= 5 %}<span class="ribbon low">¡Quedan {{ it.get('stock') }}!</span>{% endif %}</button>
+    <div class="txt" data-ficha="{{ i }}"><div class="n">{{ it.nombre }}</div>{% if it.descripcion %}<div class="desc">{{ it.descripcion }}</div>{% endif %}<div class="pr">{% if it.duracion_min %}<span class="muted">{{ it.duracion_min }} min · </span>{% endif %}<span class="price">${{ "{:,}".format(it.precio).replace(",", ".") }}</span></div></div>
     <div class="qty" data-i="{{ i }}" data-p="{{ it.precio }}" data-max="{{ it.get('stock') if it.get('stock') is not none else 50 }}">
       <button type="button" class="rm" aria-label="Quitar">−</button><span>0</span><button type="button" class="add" aria-label="Agregar {{ it.nombre }}">+</button>
     </div>
   </div>
   {% endfor %}
+  </div>
+  </section>
   {% endfor %}
-
-  <h2>Tus datos</h2>
-  <form class="form card" id="f">
-    <input name="cliente" required maxlength="60" placeholder="Tu nombre" autocomplete="name">
-    <input name="contacto" maxlength="40" placeholder="Teléfono / WhatsApp" inputmode="tel" autocomplete="tel">
-    {% if bp.modo == 'turnos' %}
-    <div class="grid2"><input type="date" name="dia" required><input type="time" name="hora" required step="900"></div>
-    {% endif %}
-    <textarea name="nota" maxlength="300" rows="2" placeholder="{{ 'Algo que debamos saber (opcional)' if bp.modo == 'turnos' else 'Dirección de entrega (o “retiro”) y aclaraciones' }}"></textarea>
-    <div class="pagos">
-      <div class="muted" style="font-size:.85rem">¿Cómo pagás?</div>
-      {% set nombres = {'efectivo':'💵 Efectivo','mercadopago':'🔵 Mercado Pago','transferencia':'🏦 Transferencia'} %}
-      {% for k in pagos %}
-      <label class="op"><input type="radio" name="pago" value="{{ k }}" {% if loop.first %}checked{% endif %}> {{ nombres[k] }}</label>
-      {% endfor %}
-    </div>
-    <div class="err" id="err"></div>
-  </form>
   <div class="foot">Hecho con 💜 en <a href="/">Marcia Neon</a></div>
 </div>
-<div class="bar"><div class="in"><div><div class="muted" style="font-size:.8rem">Total</div><div class="price" id="tot" style="font-size:1.3rem">$0</div></div>
-<button class="btn btn-neon" id="go" disabled>{{ 'Reservar turno' if bp.modo == 'turnos' else 'Confirmar pedido' }} →</button></div></div>
+
+<div class="bar" id="bar" hidden><div class="in">
+  <button class="btn btn-neon cartbtn" id="verPedido" type="button"><span class="cnt" id="cnt">0</span><span>{{ 'Ver reserva' if bp.modo == 'turnos' else 'Ver mi pedido' }}</span><b class="price" id="tot">$0</b></button>
+</div></div>
+
+<div class="ov" id="ov" hidden></div>
+<section class="bs" id="ficha" hidden aria-label="Producto">
+  <button class="bs-x" data-cerrar aria-label="Cerrar">✕</button>
+  <div id="fichaBody"></div>
+</section>
+
+<section class="bs bs-tall" id="carrito" hidden aria-label="Tu pedido">
+  <div class="bs-h"><b>{{ 'Tu reserva' if bp.modo == 'turnos' else 'Tu pedido' }}</b><button class="bs-x" data-cerrar aria-label="Cerrar">✕</button></div>
+  <div class="bs-scroll">
+    <div id="lineas"></div>
+    <button type="button" class="btn btn-ghost" id="seguir" style="width:100%;margin:6px 0 14px">+ Agregar más {{ 'servicios' if bp.modo == 'turnos' else 'productos' }}</button>
+    <form class="form card" id="f">
+      <b style="font-size:.95rem">Tus datos</b>
+      <input name="cliente" required maxlength="60" placeholder="Tu nombre" autocomplete="name">
+      <input name="contacto" maxlength="40" placeholder="Teléfono / WhatsApp" inputmode="tel" autocomplete="tel">
+      {% if bp.modo == 'turnos' %}
+      <div class="grid2"><input type="date" name="dia" required><input type="time" name="hora" required step="900"></div>
+      {% endif %}
+      <textarea name="nota" maxlength="300" rows="2" placeholder="{{ 'Algo que debamos saber (opcional)' if bp.modo == 'turnos' else 'Dirección de entrega (o “retiro”) y aclaraciones' }}"></textarea>
+      <div class="pagos">
+        <div class="muted" style="font-size:.85rem">¿Cómo pagás?</div>
+        {% set nombres = {'efectivo':'💵 Efectivo','mercadopago':'🔵 Mercado Pago','transferencia':'🏦 Transferencia'} %}
+        {% for k in pagos %}
+        <label class="op"><input type="radio" name="pago" value="{{ k }}" {% if loop.first %}checked{% endif %}> {{ nombres[k] }}</label>
+        {% endfor %}
+      </div>
+      <div class="err" id="err"></div>
+    </form>
+  </div>
+  <div class="bs-foot"><div><div class="muted" style="font-size:.8rem">Total</div><b class="price" id="tot2" style="font-size:1.25rem">$0</b></div>
+    <button class="btn btn-neon" id="go" disabled>{{ 'Reservar turno' if bp.modo == 'turnos' else 'Confirmar pedido' }} →</button></div>
+</section>
+<div class="toast" id="toast" hidden></div>
 
 <button class="fab" data-open-chat aria-label="Abrir vendedor virtual">💬 <span>Pedí por chat</span></button>
 <section class="sheet" id="sheet" hidden aria-label="Vendedor virtual">
-  <div class="sh-h">{% if d.logo %}<img class="ava" src="{{ d.logo }}" alt="" style="object-fit:cover;padding:0">{% else %}<div class="ava">{{ d.nombre[:1]|upper }}</div>{% endif %}<div><b>{{ d.nombre }}</b><small id="iaLbl">● Vendedor virtual · en línea</small></div><button class="x" id="closeChat" aria-label="Cerrar">✕</button></div>
+  <div class="sh-h">{% if d.logo %}<img class="ava" src="{{ d.logo }}" alt="" style="object-fit:contain;padding:3px;background:#fff">{% else %}<div class="ava">{{ d.nombre[:1]|upper }}</div>{% endif %}<div><b>{{ d.nombre }}</b><small id="iaLbl">● Vendedor virtual · en línea</small></div><button class="x" id="closeChat" aria-label="Cerrar">✕</button></div>
   <div class="cmsgs" id="cm"></div>
   <div class="cart-pill" id="cpill" hidden><span id="cpTxt"></span><b id="cpTot"></b></div>
   <div class="quick" id="quick"></div>
@@ -141,12 +247,61 @@ const md=s=>linkify(esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').repla
 const linkOr=v=>{const u=/^https?:\/\//.test(v)?v:(/^[\w.-]+\.[a-z]{2,}\//i.test(v)?'https://'+v:null);return u?`<a href="${esc(u)}" target="_blank" rel="noopener">${esc(v)}</a>`:esc(v)};
 const turnos={{ (bp.modo == 'turnos')|tojson }}, SLUG={{ slug|tojson }}, NOMBRE={{ d.nombre|tojson }};
 
-/* ---- carrito del formulario ---- */
-function upd(){let t=0,c=0;document.querySelectorAll('.qty').forEach(q=>{const n=sel[q.dataset.i]||0;q.querySelector('span').textContent=n;q.classList.toggle('has',n>0);t+=n*q.dataset.p;c+=n});$('#tot').textContent=fmt(t);$('#go').disabled=!c}
-document.querySelectorAll('.qty').forEach(q=>{
-  q.querySelector('.add').onclick=()=>{const i=q.dataset.i;if(turnos){for(const k in sel)delete sel[k];sel[i]=1}else sel[i]=Math.min(+q.dataset.max||50,(sel[i]||0)+1);upd()};
-  q.querySelector('.rm').onclick=()=>{const i=q.dataset.i;sel[i]=Math.max(0,(sel[i]||0)-1);upd()};
+/* ---- catálogo + carrito (estilo app de delivery) ---- */
+const ITEMS={{ d['items']|tojson }};
+const ILUS={ {% for cat, lista in grupos.items() %}{% for i, it, il in lista %}"{{ i }}":{{ il.emoji|tojson }},{% endfor %}{% endfor %} };
+const ov=$('#ov'), ficha=$('#ficha'), carrito=$('#carrito');
+let fichaQ=1, abiertoBS=null;
+function toast(t){if(abiertoBS)return;const x=$('#toast');x.textContent=t;x.hidden=false;clearTimeout(x._t);x._t=setTimeout(()=>x.hidden=true,1600)}
+function maxDe(i){const st=ITEMS[i].stock;return st==null?50:+st}
+function poner(i,n){i=String(i);if(turnos){for(const k in sel)delete sel[k];if(n>0)sel[i]=1}else{n=Math.max(0,Math.min(maxDe(i),n));if(n)sel[i]=n;else delete sel[i]}upd()}
+function upd(){
+  let t=0,c=0;
+  document.querySelectorAll('#app .qty').forEach(q=>{const n=sel[q.dataset.i]||0;q.querySelector('span').textContent=n;q.classList.toggle('has',n>0)});
+  for(const k in sel){t+=sel[k]*ITEMS[k].precio;c+=sel[k]}
+  $('#tot').textContent=fmt(t);$('#tot2').textContent=fmt(t);$('#cnt').textContent=c;$('#go').disabled=!c;
+  $('#bar').hidden=!c;document.querySelector('.fab').style.bottom=c?'':'calc(20px + env(safe-area-inset-bottom,0px))';
+  if(abiertoBS===carrito)lineas();
+}
+function abrirBS(el){ov.hidden=false;el.hidden=false;abiertoBS=el;document.body.style.overflow='hidden'}
+function cerrarBS(){if(!abiertoBS)return;abiertoBS.hidden=true;ov.hidden=true;abiertoBS=null;document.body.style.overflow=''}
+ov.onclick=cerrarBS;document.querySelectorAll('[data-cerrar]').forEach(b=>b.onclick=cerrarBS);
+document.querySelectorAll('#app .qty').forEach(q=>{
+  q.querySelector('.add').onclick=e=>{e.stopPropagation();const i=q.dataset.i;poner(i,(sel[i]||0)+1);if(!turnos||true)toast('✓ Agregado')};
+  q.querySelector('.rm').onclick=e=>{e.stopPropagation();const i=q.dataset.i;poner(i,(sel[i]||0)-1)};
 });
+function abrirFicha(i){
+  const it=ITEMS[i],ag=it.stock!=null&&it.stock<=0;fichaQ=sel[i]||1;
+  $('#fichaBody').innerHTML=(it.imagen?`<img class="fi-img" src="${esc(it.imagen)}" alt="">`:`<div class="fi-emo">${esc(ILUS[i]||'✨')}</div>`)+
+    `<div class="fi-b"><h3>${esc(it.nombre)}</h3>${it.descripcion?`<p>${esc(it.descripcion)}</p>`:''}<b class="price" style="font-size:1.2rem">${fmt(it.precio)}</b>${it.duracion_min?` <span class="muted">· ${it.duracion_min} min</span>`:''}${ag?' <b style="color:#ff8fab">· Agotado</b>':it.stock!=null&&it.stock<=5?` <span style="color:var(--lime)">· Quedan ${it.stock}</span>`:''}</div>`+
+    (ag?'':`<div class="fi-act">${turnos?'':`<div class="qty has"><button type="button" class="rm" id="fqm">−</button><span id="fq">${fichaQ}</span><button type="button" class="add" id="fqp">+</button></div>`}<button class="btn btn-neon" id="fAdd">${turnos?'Elegir este servicio':'Agregar · '+fmt(it.precio*fichaQ)}</button></div>`);
+  if(!ag){
+    const sync=()=>{$('#fq')&&($('#fq').textContent=fichaQ);$('#fAdd').textContent=turnos?'Elegir este servicio':'Agregar · '+fmt(it.precio*fichaQ)};
+    if($('#fqm')){$('#fqm').onclick=()=>{fichaQ=Math.max(1,fichaQ-1);sync()};$('#fqp').onclick=()=>{fichaQ=Math.min(maxDe(i),fichaQ+1);sync()}}
+    $('#fAdd').onclick=()=>{poner(i,turnos?1:fichaQ);cerrarBS();toast('✓ Agregado al pedido')};
+  }
+  abrirBS(ficha);
+}
+document.querySelectorAll('[data-ficha]').forEach(el=>el.onclick=()=>abrirFicha(el.dataset.ficha));
+function lineas(){
+  const ks=Object.keys(sel);
+  $('#lineas').innerHTML=ks.length?ks.map(k=>{const it=ITEMS[k];return `<div class="ln">${it.imagen?`<img src="${esc(it.imagen)}" alt="">`:`<span class="le">${esc(ILUS[k]||'✨')}</span>`}<div class="lt"><b>${esc(it.nombre)}</b><span class="price">${fmt(it.precio*sel[k])}</span></div>${turnos?`<button type="button" class="btn btn-ghost" data-q="${k}" data-d="-1" style="min-height:36px">Quitar</button>`:`<div class="qty has"><button type="button" class="rm" data-q="${k}" data-d="-1">−</button><span>${sel[k]}</span><button type="button" class="add" data-q="${k}" data-d="1">+</button></div>`}</div>`}).join(''):'<p class="muted">Tu pedido está vacío.</p>';
+  $('#lineas').querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>poner(b.dataset.q,(sel[b.dataset.q]||0)+(+b.dataset.d)));
+}
+$('#verPedido').onclick=()=>{lineas();abrirBS(carrito)};
+$('#seguir').onclick=cerrarBS;
+/* buscador */
+$('#sBtn').onclick=()=>{const b=$('#sBox');b.hidden=!b.hidden;if(!b.hidden)$('#sIn').focus();else{$('#sIn').value='';filtrar('')}};
+const normz=t=>t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+function filtrar(q){q=normz(q.trim());let vis=0;
+  document.querySelectorAll('.catsec').forEach(sec=>{let n=0;sec.querySelectorAll('.item').forEach(it=>{const ok=!q||normz(it.dataset.n).includes(q);it.hidden=!ok;n+=ok});sec.hidden=!n;vis+=n});
+  $('#nores').hidden=vis>0;if($('#cats'))$('#cats').hidden=!!q}
+$('#sIn').oninput=e=>filtrar(e.target.value);
+/* categorías que se resaltan solas */
+if($('#cats')){const links=[...document.querySelectorAll('#cats a')];
+  const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){links.forEach(a=>a.classList.toggle('on',a.dataset.c===e.target.id));const on=links.find(a=>a.dataset.c===e.target.id);on&&on.scrollIntoView({inline:'center',block:'nearest',behavior:'smooth'})}}),{rootMargin:'-120px 0px -60% 0px'});
+  document.querySelectorAll('.catsec').forEach(s=>io.observe(s))}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')cerrarBS()});
 if(turnos){const d=document.querySelector('[name=dia]');if(d){d.min=new Date().toISOString().slice(0,10);
   const occ=document.createElement('div');occ.className='muted';occ.style.fontSize='.85rem';d.parentNode.after(occ);
   d.onchange=async()=>{occ.textContent='';if(!d.value)return;try{const r=await fetch(`/api/n/${SLUG}/ocupados?dia=${d.value}`);const l=await r.json();
@@ -162,12 +317,13 @@ $('#go').onclick=async()=>{
     const j=await r.json();
     if(r.ok&&j.pago_url){location.href=j.pago_url;return}
     if(!r.ok){$('#err').textContent=typeof j.detail==='string'?j.detail:'Revisá los datos';$('#go').disabled=false;return}
+    cerrarBS();window.scrollTo(0,0);
     $('#app').innerHTML=`<div class="ok card"><div class="big">✅</div><h1>${turnos?'¡Turno reservado!':'¡Pedido confirmado!'}</h1>
       <p class="muted">${turnos?'Reserva':'Pedido'} #${j.numero}${turnos?' para el '+body.cuando.replace(' ',' a las '):''}</p>
       <div style="text-align:left;max-width:360px;margin:16px auto">${j.detalle.map(x=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--line)"><span>${x.cantidad}× ${esc(x.nombre)}</span><span class="price">${fmt(x.precio*x.cantidad)}</span></div>`).join('')}
       <div style="display:flex;justify-content:space-between;padding-top:8px;font-weight:800"><span>Total</span><span>${fmt(j.total)}</span></div></div>
       ${payHTML(j)}<a class="btn btn-neon" href="${esc(j.seguimiento)}" style="width:100%;margin:10px 0">📍 Seguir mi pedido en vivo</a><p class="muted">El negocio ya lo tiene en su panel. ¡Gracias!</p><a class="btn btn-ghost" href="">Hacer otro</a></div>`;
-    document.querySelector('.bar').remove();
+    document.querySelector('.bar').remove();for(const k in sel)delete sel[k];
   }catch(e){$('#err').textContent='Sin conexión, probá de nuevo.';$('#go').disabled=false}
 };
 
@@ -176,7 +332,7 @@ const sheet=$('#sheet'), cm=$('#cm'), ci=$('#ci');
 let CHAT=null, busy=false, abierto=false;
 try{CHAT=sessionStorage.getItem('chat_'+SLUG)}catch(e){}
 const QUICK=turnos?['¿Qué servicios tienen?','¿Qué horarios tienen?','Quiero un turno','¿Cómo se paga?']
-                  :['Ver el menú','¿Cuánto sale el envío?','¿Cómo puedo pagar?','Quiero hacer un pedido'];
+                  :['¿Qué me recomendás?','Ver productos','¿Cuánto sale el envío?','¿Cómo puedo pagar?'];
 function add(cls,html){const d=document.createElement('div');d.className='m '+cls;d.innerHTML=html;cm.appendChild(d);cm.scrollTop=cm.scrollHeight;return d}
 function quick(list){const q=$('#quick');q.innerHTML='';list.forEach(x=>{const b=document.createElement('button');b.type='button';b.textContent=x;b.onclick=()=>enviar(x);q.appendChild(b)})}
 function abrir(){
@@ -191,20 +347,32 @@ async function enviar(texto){
   texto=(texto??ci.value).trim();if(!texto||busy)return;busy=true;ci.value='';add('u',esc(texto));
   const typ=add('a','<span class="typing"><i></i><i></i><i></i></span>');
   try{
-    const r=await fetch(`/api/n/${SLUG}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat:CHAT,texto})});
+    const r=await fetch(`/api/n/${SLUG}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat:CHAT,texto,carrito:{...sel}})});
     const j=await r.json();typ.remove();
     if(!r.ok){add('a',esc(j.detail||'Ups, probá de nuevo.'));return}
     CHAT=j.chat;try{sessionStorage.setItem('chat_'+SLUG,CHAT)}catch(e){}
-    add('a',md(j.respuesta));
-    $('#iaLbl').textContent=j.ia==='deepseek'?'● Vendedor virtual · IA DeepSeek':'● Vendedor virtual · en línea';
+    aplicar(j);return;
+  }catch(e){typ.remove();add('a','Sin conexión, probá de nuevo.')}
+  finally{busy=false;if(matchMedia('(min-width:601px)').matches)ci.focus()}
+}
+function tarjetas(lista){
+  if(!lista||!lista.length)return;
+  const box=add('a pcards-wrap',`<div class="pcards">${lista.map(p=>`<div class="pcard${p.agotado?' ag':''}"><button type="button" class="pc-img" data-fi="${p.i}">${p.imagen?`<img src="${esc(p.imagen)}" alt="" loading="lazy">`:`<span>${esc(p.emoji)}</span>`}</button><div class="pc-b"><b>${esc(p.nombre)}</b><span class="price">${fmt(p.precio)}</span></div>${p.agotado?'<span class="pc-ag">Agotado</span>':`<button type="button" class="btn btn-neon pc-add" data-add="${p.i}">${turnos?'Elegir':'+ Agregar'}</button>`}</div>`).join('')}</div>`);
+  box.querySelectorAll('[data-fi]').forEach(b=>b.onclick=()=>abrirFicha(b.dataset.fi));
+  box.querySelectorAll('[data-add]').forEach(b=>b.onclick=async()=>{
+    if(!CHAT)return;b.disabled=true;
+    try{const r=await fetch(`/api/n/${SLUG}/chat/agregar`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat:CHAT,indice:+b.dataset.add,carrito:{...sel}})});
+      const j=await r.json();if(r.ok){b.textContent='✓ Agregado';aplicar(j)}else b.disabled=false}catch(e){b.disabled=false}});
+}
+function aplicar(j){
+    add('a',md(j.respuesta));tarjetas(j.productos);
+    if(j.ia)$('#iaLbl').textContent=j.ia==='deepseek'?'● Vendedor virtual · IA DeepSeek':'● Vendedor virtual · en línea';
     const n=Object.values(j.carrito||{}).reduce((a,b)=>a+b,0);
     if(j.paso!=='hecho'){for(const k in sel)delete sel[k];Object.entries(j.carrito||{}).forEach(([k,v])=>sel[k]=v);upd()}  // catálogo integrado
     $('#cpill').hidden=!n||j.paso==='hecho';$('#cpTxt').textContent=`🛒 ${n} ${n===1?'ítem':'ítems'}`;$('#cpTot').textContent=fmt(j.total||0);
     if(j.pedido&&j.pedido.pago_url){add('a',`<a class="btn btn-neon" href="${esc(j.pedido.pago_url)}">Pagar con Mercado Pago →</a>`)}
     if(j.pedido&&j.pedido.seguimiento){add('a',`<a class="btn btn-neon" href="${esc(j.pedido.seguimiento)}">📍 Seguir mi pedido en vivo</a>`)}
     quick(j.paso==='hecho'?['Hacer otro pedido']:j.paso==='confirmar'?['Sí, confirmo','Quiero cambiar algo']:j.paso==='datos'?[]:n?['Nada más, confirmar','Ver el menú']:QUICK);
-  }catch(e){typ.remove();add('a','Sin conexión, probá de nuevo.')}
-  finally{busy=false;if(matchMedia('(min-width:601px)').matches)ci.focus()}
 }
 $('#cf').addEventListener('submit',e=>{e.preventDefault();enviar()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&abierto)cerrar()});

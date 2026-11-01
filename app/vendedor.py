@@ -197,7 +197,7 @@ def _faq(d: dict, bp: dict, pagos: dict, n: str) -> str | None:
         return f"🕒 Atendemos {d.get('horarios')}."
     if re.search(r"condicion|devolu|cambio|garantia|minimo|factura", n):
         return f"📋 {info['condiciones']}" if info.get("condiciones") else "📋 Para condiciones especiales consultá directo con el local" + (f" al {d['telefono']}." if d.get("telefono") else ".")
-    if re.search(r"menu|carta|que tenes|que tienen|que venden|productos|servicios|precios|lista", n):
+    if re.search(r"menu|carta|que tenes|que tienen|que venden|productos|servicios|precios|lista|catalogo", n):
         return "Esto es lo que tenemos 👇\n" + "\n".join(f"• {it['nombre']}: {fmt(it['precio'])}" + ("" if disponible(it) else " (agotado)") for it in d["items"][:30])
     return None
 
@@ -286,10 +286,12 @@ def vendedor_simulado(d: dict, bp: dict, pagos: dict, e: dict, texto: str) -> st
         if not disponible(it):
             return saludo + f"Uy, hoy **{it['nombre']}** está agotado 😕 ¿Te ofrezco otra cosa del menú?"
         e["sugerido"] = exacto[0]
+        e["_mostrar"] = e["ultimos"] = [exacto[0]]
         return saludo + f"¡Sí! Tenemos **{it['nombre']}** a {fmt(it['precio'])}" + \
                (f" ({it['duracion_min']} min). ¿Te lo reservo?" if turnos else ". ¿Cuántas te anoto?")
     idx = buscar_items(d, texto, listar=True)
     if idx:
+        e["_mostrar"] = e["ultimos"] = idx[:6]
         return saludo + "Tenemos 👇\n" + "\n".join(f"• {d['items'][i]['nombre']}: {fmt(d['items'][i]['precio'])}" + ("" if disponible(d["items"][i]) else " (agotado)") for i in idx) + \
                "\n\n¿Cuál te " + ("reservo?" if turnos else "anoto y cuántas?")
     if e["carrito"] and NADA_MAS.search(n):
@@ -382,9 +384,10 @@ REGLAS ESTRICTAS:
 - Tu ÚNICA fuente es la FICHA (catálogo, stock, precios, info). Si algo no está en la ficha, NO existe: decí que no lo tenés o que el local lo confirma. Nunca inventes productos, precios, promos, envíos ni condiciones.
 - Productos AGOTADO: no se venden; ofrecé una alternativa del catálogo. No vendas más unidades que el stock.
 - NO escribas resúmenes del carrito ni totales: el sistema los agrega solo con los precios reales.
+- "mostrar": índices (máx 6) de productos para mostrar como TARJETAS CON FOTO y botón de agregar. Usalo cuando el cliente quiere ver opciones, fotos, comparar o cuando recomendás. Nunca digas que no podés mostrar imágenes: el sistema las muestra.
 - "agregar" y "quitar": SOLO lo que el cliente pide en ESTE mensaje (lo anterior ya está en ESTADO.carrito; no lo repitas).
 - Proceso: agregá lo que pide y preguntá si quiere algo más. Cuando termina, pedí confirmación o cambios. Con la confirmación pedí de a un dato: nombre, {entrega}, teléfono y medio de pago (solo los de la ficha). "confirmado": true SOLO si el cliente confirmó explícitamente el pedido completo.
-Respondé SOLO JSON: {{"respuesta":"...","agregar":[{{"indice":0,"cantidad":1}}],"quitar":[0],"cliente":{{"nombre":"","direccion":"","contacto":""}},"cuando":"","pago":"","confirmado":false}}
+Respondé SOLO JSON: {{"respuesta":"...","mostrar":[0],"agregar":[{{"indice":0,"cantidad":1}}],"quitar":[0],"cliente":{{"nombre":"","direccion":"","contacto":""}},"cuando":"","pago":"","confirmado":false}}
 Usá índices del catálogo. Omití campos vacíos."""
 
 
@@ -459,6 +462,18 @@ async def vendedor_ia(d, bp, pagos, e, texto, historia, cred) -> tuple[str, dict
             pass
     if out.get("pago") in pagos:
         e2["pago"] = out["pago"]
+    mos = []
+    for x in (out.get("mostrar") or [])[:6]:
+        try:
+            if 0 <= int(x) < len(d["items"]) and int(x) not in mos:
+                mos.append(int(x))
+        except (ValueError, TypeError):
+            pass
+    if not mos and re.search(r"\b(foto|imagen|imag|mostra|ver |muestr)", norm(texto)) and e.get("ultimos"):
+        mos = e["ultimos"][:6]  # "mostrame imágenes" -> lo último que se habló
+    if mos:
+        e2["_mostrar"] = mos
+        e2["ultimos"] = mos
     resp = str(out.get("respuesta") or "").strip()
     resp = re.split(r"\n\s*(?:🛒|Llevás|Te resumo|Total parcial)", resp)[0].strip()  # el resumen lo pone el servidor
     if not resp or not _precios_ok(resp, d, e2):

@@ -345,6 +345,40 @@ async def _registrar_pedido(request, slug, row, d, bp, items: dict, cliente, con
 class ChatMsg(BaseModel):
     chat: str | None = Field(None, max_length=40)
     texto: str = Field(..., min_length=1, max_length=500)
+    carrito: dict[str, int] | None = None  # carrito de la página (catálogo) para sincronizar con el chat
+
+
+def _sync_carrito(d: dict, bp: dict, e: dict, carrito: dict | None):
+    """El carrito del catálogo manda: si el cliente agregó desde la página, el chat lo sabe."""
+    if carrito is None or e.get("paso") not in ("comprando", "confirmar"):
+        return
+    nuevo = {}
+    for k, v in carrito.items():
+        try:
+            i, c = int(k), int(v)
+        except (ValueError, TypeError):
+            continue
+        if 0 <= i < len(d["items"]) and c > 0 and vendedor.disponible(d["items"][i]):
+            st = d["items"][i].get("stock")
+            nuevo[str(i)] = min(c, 50 if st is None else int(st))
+    if bp["modo"] == "turnos" and len(nuevo) > 1:
+        nuevo = dict([next(iter(nuevo.items()))])
+    if nuevo != e["carrito"]:
+        e["carrito"] = nuevo
+        e["resumen_ok"] = False
+        if e.get("paso") == "confirmar":
+            e["paso"] = "comprando"
+
+
+def _tarjetas(d: dict, idx: list) -> list[dict]:
+    out = []
+    for i in idx or []:
+        if 0 <= int(i) < len(d["items"]):
+            it = d["items"][int(i)]
+            out.append({"i": int(i), "nombre": it["nombre"], "precio": it["precio"], "imagen": it.get("imagen"),
+                        "emoji": ilus(it)["emoji"], "agotado": not vendedor.disponible(it),
+                        "duracion_min": it.get("duracion_min")})
+    return out
 
 
 @app.post("/api/n/{slug}/chat")
@@ -365,6 +399,7 @@ async def chat_vendedor(slug: str, m: ChatMsg, request: Request):
         raise HTTPException(429, "Llegaste al límite de mensajes de esta charla.")
     if e["paso"] == "hecho":  # pedido ya hecho: empieza uno nuevo manteniendo los datos del cliente
         e = {**vendedor.estado_inicial(), "cliente": e["cliente"]}
+    _sync_carrito(d, bp, e, m.carrito)
     respuesta, proveedor = await vendedor.responder(d, bp, pagos, e, m.texto.strip(), hist, ia.credenciales(_secreto(row["id"])))
     pedido = None
     if e["paso"] == "final":
@@ -388,9 +423,52 @@ async def chat_vendedor(slug: str, m: ChatMsg, request: Request):
     with db() as c:
         c.execute("UPDATE chats SET estado=?, historia=?, mensajes=mensajes+1 WHERE id=?",
                   (json.dumps(e, ensure_ascii=False), json.dumps(hist, ensure_ascii=False), cid))
+    productos = _tarjetas(d, e.pop("_mostrar", None))
+    with db() as c:
+        c.execute("UPDATE chats SET estado=? WHERE id=?", (json.dumps(e, ensure_ascii=False), cid))
     resumen, total = vendedor.resumen(d, e)
     return {"chat": cid, "respuesta": respuesta, "ia": proveedor, "carrito": e["carrito"], "total": total,
-            "paso": e["paso"], "pedido": pedido}
+            "paso": e["paso"], "pedido": pedido, "productos": productos}
+
+
+class AgregarChat(BaseModel):
+    chat: str = Field(..., max_length=40)
+    indice: int = Field(..., ge=0)
+    carrito: dict[str, int] | None = None
+
+
+@app.post("/api/n/{slug}/chat/agregar")
+def chat_agregar(slug: str, body: AgregarChat, request: Request):
+    """Botón 'Agregar' de una tarjeta del chat: sin IA (costo 0)."""
+    limitar(request, 60, "vendedor")
+    row, d, bp = _negocio(slug)
+    with db() as c:
+        r = c.execute("SELECT estado FROM chats WHERE id=? AND negocio_id=?", (body.chat, row["id"])).fetchone()
+    if not r:
+        raise HTTPException(404)
+    e = json.loads(r["estado"])
+    if e["paso"] == "hecho":
+        e = {**vendedor.estado_inicial(), "cliente": e["cliente"]}
+    _sync_carrito(d, bp, e, body.carrito)
+    if body.indice >= len(d["items"]):
+        raise HTTPException(400)
+    it = d["items"][body.indice]
+    if not vendedor.disponible(it):
+        resp = f"Uy, {it['nombre']} está agotado 😕"
+    else:
+        k = str(body.indice)
+        if bp["modo"] == "turnos":
+            e["carrito"] = {k: 1}
+        else:
+            st = it.get("stock")
+            e["carrito"][k] = min(e["carrito"].get(k, 0) + 1, 50 if st is None else int(st))
+        e["resumen_ok"], e["paso"] = False, "comprando"
+        r_, tot = vendedor.resumen(d, e)
+        resp = f"¡Listo! Sumé {it['nombre']} 🛒\n\nLlevás:\n{r_}\nTotal parcial: **{vendedor.fmt(tot)}**\n\n¿Algo más o te lo confirmo?"
+    with db() as c:
+        c.execute("UPDATE chats SET estado=? WHERE id=?", (json.dumps(e, ensure_ascii=False), body.chat))
+    return {"chat": body.chat, "respuesta": resp, "carrito": e["carrito"], "total": vendedor.resumen(d, e)[1],
+            "paso": e["paso"], "productos": [], "ia": "simulado"}
 
 
 def _mensaje_confirmacion(d, bp, e, p) -> str:

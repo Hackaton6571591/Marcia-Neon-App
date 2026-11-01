@@ -96,3 +96,4 @@ Registro cronológico. Cada acción relevante se agrega acá.
 - **Clave de acceso (PIN) por negocio**: se crea la primera vez que se abre el panel con el link; después se pide siempre; cambio de clave y cierre de sesión en la pestaña 🔐 Acceso; el link solo deja de dar acceso. 16 pruebas OK.
 - **Compartir la tienda**: QR descargable (`/n/{slug}/qr.png`), WhatsApp, email, Telegram, Facebook, X, copiar link y compartir nativo del celular, al publicar y en el panel; botón 📤 en la tienda para que los clientes la compartan.
 - **Documentación de uso con y sin DeepSeek** (`docs/uso-con-y-sin-ia.md`): comparación por función, cómo sacar la API key, cómo integrarla en el servidor y por negocio, cómo apagar la IA y cómo está integrado.
+- **Página de presentación para el jurado**: `/proyecto` (qué hicimos, cómo, componentes, IA, importadores, integraciones, stack, seguridad, pruebas, demos y roadmap, con capturas reales) y `docs/presentacion.md`. Link en el pie de la landing.

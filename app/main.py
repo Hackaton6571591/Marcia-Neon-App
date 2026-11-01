@@ -118,6 +118,12 @@ def salud():
     return {"ok": True, "ia": ia, "mercadopago": "checkout" if mercadopago.activo() else "manual"}
 
 
+@app.get("/proyecto", response_class=HTMLResponse)
+def proyecto(request: Request):
+    """Presentación del proyecto para el jurado de la hackatón."""
+    return tpl.TemplateResponse(request, "proyecto.html", {})
+
+
 @app.get("/ayuda/deepseek", response_class=HTMLResponse)
 def ayuda_deepseek(request: Request):
     return tpl.TemplateResponse(request, "ayuda_deepseek.html", {})

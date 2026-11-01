@@ -42,6 +42,7 @@ Python 3.12 · FastAPI · SQLite (WAL) · HTML/CSS/JS nativo · Caddy · systemd
 - [docs/deploy.md](docs/deploy.md): Caddy, servicio, URLs y cómo vincular el dominio.
 
 ## Ver en vivo
+- 📄 **Presentación del proyecto:** https://dwday-38964763.online/proyecto ([docs/presentacion.md](docs/presentacion.md))
 - **https://dwday-38964763.online** (dominio oficial de la hackatón, HTTPS)
 - Alternativa: https://66-97-32-220.sslip.io
 

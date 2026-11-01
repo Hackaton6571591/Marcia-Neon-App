@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Marcia Neon · Proyecto · Hackatón DonWeb 2026</title>
+<meta name="description" content="Marcia Neon: la plataforma con IA que arma en minutos la tienda online, el vendedor virtual, los turnos y el panel de un negocio local para que no pierda más pedidos.">
+<link rel="stylesheet" href="/static/marcia.css?v=3"><meta name="theme-color" content="#07060f">
+<link rel="icon" href="/static/icon.svg">
+<style>
+.wrap{max-width:1040px;margin:0 auto;padding:0 max(18px,env(safe-area-inset-right,0px)) 80px max(18px,env(safe-area-inset-left,0px))}
+.hero{padding:56px 0 30px}
+.hero h1{font-size:clamp(2.2rem,6vw,3.8rem);line-height:1.04;letter-spacing:-.035em;margin:14px 0}
+.lead{font-size:clamp(1.05rem,2vw,1.25rem);color:var(--muted);max-width:62ch;margin:0}
+.lead b{color:var(--text)}
+.ctas{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+section{padding-top:56px}
+h2{font-size:clamp(1.6rem,3.6vw,2.3rem);letter-spacing:-.03em;margin:8px 0 10px}
+.k{color:var(--cyan);font-weight:800;letter-spacing:.14em;text-transform:uppercase;font-size:.78rem}
+.sub{color:var(--muted);max-width:70ch;margin:0 0 22px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.c{padding:20px}
+.c h3{margin:6px 0 6px;font-size:1.08rem}
+.c p,.c li{color:var(--muted);margin:0;font-size:.94rem;line-height:1.5}
+.c ul{margin:8px 0 0;padding-left:18px}
+.ic{font-size:1.7rem}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:26px}
+.st{padding:16px}.st b{display:block;font-size:1.7rem;letter-spacing:-.02em}.st span{color:var(--muted);font-size:.86rem}
+.comp{display:grid;grid-template-columns:1fr 280px;gap:22px;align-items:center;padding:22px;margin-bottom:16px}
+.comp.rev{grid-template-columns:280px 1fr}.comp.rev .shot{order:-1}
+.comp h3{margin:4px 0 8px;font-size:1.35rem;letter-spacing:-.01em}
+.comp p{color:var(--muted);margin:0 0 10px}
+.comp ul{margin:0;padding-left:18px;color:var(--muted);line-height:1.6}
+.comp li b{color:var(--text)}
+.shot{border-radius:22px;overflow:hidden;border:1px solid var(--line);box-shadow:0 20px 50px -25px #000,0 0 50px -30px var(--pink);background:#0b0a16}
+.shot img{display:block;width:100%;height:auto}
+.flow{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.node{padding:12px 16px;border-radius:14px;border:1px solid var(--line);background:var(--card);font-weight:700;font-size:.92rem}
+.node small{display:block;color:var(--muted);font-weight:500;font-size:.78rem}
+.arr{color:var(--cyan);font-weight:900}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--cyan);font-size:.78rem;letter-spacing:.08em;text-transform:uppercase}
+td:first-child{font-weight:700;white-space:nowrap}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:18px;background:var(--card)}
+.demo a{word-break:break-all}
+.pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:.75rem;font-weight:800;margin-right:4px}
+.ok{background:rgba(182,255,61,.14);color:var(--lime)}.wip{background:rgba(255,176,32,.14);color:#ffb020}
+footer{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);color:var(--muted);font-size:.9rem;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+@media(max-width:760px){.comp,.comp.rev{grid-template-columns:1fr}.comp .shot,.comp.rev .shot{order:2;max-width:300px;margin:0 auto}.hero{padding-top:34px}}
+@media print{body{background:#fff;color:#000}.top,.ctas{display:none}.card,.c,.comp{break-inside:avoid}}
+</style></head><body>
+<div class="top"><a class="logo" href="/"><svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff3dcb"/><stop offset="1" stop-color="#00e5ff"/></linearGradient></defs><rect width="64" height="64" rx="16" fill="#140f2a"/><path d="M16 46V18l16 16 16-16v28" fill="none" stroke="url(#lg)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>Marcia <span class="grad">Neon</span></a><a class="btn btn-neon" href="/crear">Probar ahora</a></div>
+<div class="wrap">
+
+<header class="hero">
+  <span class="tag"><i></i>Hackatón DonWeb 2026 · Proyecto</span>
+  <h1>Ningún negocio local<br><span class="grad">pierde otro pedido.</span></h1>
+  <p class="lead"><b>Marcia Neon</b> es una plataforma con IA que, en un par de minutos y charlando, le arma a cualquier negocio local su <b>tienda online</b> o <b>agenda de turnos</b>, un <b>vendedor virtual</b> que atiende 24/7 y un <b>panel</b> para gestionar todo. Pensada para quienes hoy atienden a mano, por WhatsApp o por teléfono.</p>
+  <div class="ctas"><a class="btn btn-neon" href="/">Ver la landing</a><a class="btn btn-ghost" href="/crear?msg=pizzeria">Crear un negocio (demo)</a><a class="btn btn-ghost" href="#demo">Links de demo ↓</a></div>
+  <div class="stats">
+    <div class="st card"><b class="grad">2 min</b><span>para tener tienda + vendedor IA online</span></div>
+    <div class="st card"><b class="grad">3 formas</b><span>de cargar productos: charla, foto/folleto o link de tu web</span></div>
+    <div class="st card"><b class="grad">&lt; 1¢</b><span>de dólar por conversación con DeepSeek</span></div>
+    <div class="st card"><b class="grad">100%</b><span>funciona también sin IA (nunca se corta una venta)</span></div>
+  </div>
+</header>
+
+<section>
+  <span class="k">El problema</span>
+  <h2>Mensajes perdidos, pedidos mal anotados, clientes que se van</h2>
+  <p class="sub">El desafío de la hackatón: un negocio local pierde ventas porque atiende consultas y pedidos a mano, por WhatsApp o por teléfono. Restaurantes, comercios, peluquerías y consultorios no tienen tiempo ni conocimientos para armar un ecommerce o un sistema de turnos.</p>
+  <div class="grid">
+    <div class="c card"><div class="ic">💬</div><h3>Mensajes que se pierden</h3><p>Entre decenas de chats, el pedido del viernes a la noche queda enterrado.</p></div>
+    <div class="c card"><div class="ic">📝</div><h3>Pedidos mal anotados</h3><p>Papelitos, audios y capturas: el pedido llega mal o no llega.</p></div>
+    <div class="c card"><div class="ic">⏳</div><h3>Clientes que esperan</h3><p>Si tardás 20 minutos en contestar, ya le compraron a otro.</p></div>
+  </div>
+</section>
+
+<section>
+  <span class="k">La solución</span>
+  <h2>Dos modelos, una plataforma</h2>
+  <p class="sub">Marcia detecta el rubro y despliega la solución correcta. Los productos físicos usan siempre el mismo ecommerce; los servicios usan un turnero (banco de tiempo).</p>
+  <div class="grid">
+    <div class="c card"><div class="ic">🛒</div><h3>Productos → tienda online</h3><p>Restaurantes, rotiserías, ferreterías, ropa, pet shops… Catálogo con fotos, carrito, pedido, pago y seguimiento, más un vendedor virtual que vende por chat.</p></div>
+    <div class="c card"><div class="ic">📅</div><h3>Servicios → turnero</h3><p>Peluquerías, consultorios, estética… Agenda por profesional, horarios libres según la duración de cada servicio, reserva online o por chat, cancelación y sincronización de calendario.</p></div>
+  </div>
+  <div class="card c" style="margin-top:14px">
+    <h3>Cómo funciona</h3>
+    <div class="flow" style="margin-top:10px">
+      <div class="node">🌐 Landing<small>"¿Qué rubro sos?"</small></div><span class="arr">→</span>
+      <div class="node">🤖 Launcher con IA<small>charla, foto, folleto o web</small></div><span class="arr">→</span>
+      <div class="node">🚀 Publicar<small>tienda + QR + compartir</small></div><span class="arr">→</span>
+      <div class="node">🛍️ Tienda / turnero<small>+ vendedor virtual 24/7</small></div><span class="arr">→</span>
+      <div class="node">📊 Panel / CRM<small>pedidos y turnos en vivo</small></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <span class="k">Componentes</span>
+  <h2>Qué construimos</h2>
+  <p class="sub">Todo funciona hoy en producción en el VPS de DonWeb. Capturas reales tomadas en tamaño celular.</p>
+
+  <div class="comp card">
+    <div><span class="tag">1 · Sitio</span><h3>🌐 Landing + 🤖 Launcher (creador de soluciones con IA)</h3>
+      <p>La landing explica el valor en segundos y lleva al launcher: una charla con <b>Marcia</b> que arma la solución mientras se ve la vista previa en vivo.</p>
+      <ul>
+        <li><b>Charla guiada por etapas</b>: rubro → problema → negocio → oferta → horarios → publicar.</li>
+        <li><b>Cargar productos de 3 formas</b>: escribiéndolos, con una <b>foto del menú o folleto</b> (DeepSeek la lee) o pegando el <b>link de la web</b> del negocio (copia productos, fotos, logo y nombre).</li>
+        <li><b>Asistente de logos</b> (4 opciones SVG con colores y lema sugeridos por IA), <b>deshacer</b> paso a paso y respuestas amables cuando el usuario se sale del flujo.</li>
+        <li>Al publicar: <b>QR</b> y botones para compartir por WhatsApp, email, Telegram, Facebook o X.</li>
+      </ul></div>
+    <div class="shot"><img src="/static/img/launcher.webp" alt="Launcher de Marcia con el menú de adjuntos" loading="lazy"></div>
+  </div>
+
+  <div class="comp rev card">
+    <div><span class="tag">2 · Tienda online</span><h3>🛍️ Ecommerce del negocio, estilo app de delivery</h3>
+      <p>Cada negocio obtiene su tienda en <code>/n/su-negocio</code>, instalable como app en el celular (PWA).</p>
+      <ul>
+        <li><b>Buscador</b>, categorías que se resaltan al hacer scroll, <b>grilla con fotos</b>, ficha de producto y <b>carrito desplegable</b>.</li>
+        <li><b>Stock</b> (agotado / "quedan 3"), medios de pago (efectivo, Mercado Pago, transferencia) y <b>seguimiento del pedido en vivo</b> para el cliente.</li>
+        <li><b>Mobile nativo</b>: áreas táctiles de 44 px, sin zoom en iOS, safe areas, carga en ~0,3 s.</li>
+      </ul></div>
+    <div class="shot"><img src="/static/img/tienda.webp" alt="Tienda online de una ferretería importada desde su web" loading="lazy"></div>
+  </div>
+
+  <div class="comp card">
+    <div><span class="tag">3 · Vendedor virtual con IA</span><h3>💬 Un vendedor que vende solo por chat</h3>
+      <p>Integrado al catálogo: responde dudas, recomienda, <b>muestra productos con foto</b> y botón "Agregar", arma el pedido y lo cierra.</p>
+      <ul>
+        <li>Proceso de venta fijo: <b>¿algo más? → resumen con total → ¿confirmo o cambiás algo? → datos → pago → pedido</b>.</li>
+        <li><b>No alucina</b>: solo usa el catálogo de ese negocio; el servidor valida stock, precios y totales; si la IA menciona un precio inexistente, se descarta.</li>
+        <li>Carrito <b>sincronizado</b> entre el chat y la tienda. Con o sin DeepSeek (modo reglas).</li>
+      </ul></div>
+    <div class="shot"><img src="/static/img/chat.webp" alt="Chat del vendedor virtual mostrando productos con foto" loading="lazy"></div>
+  </div>
+
+  <div class="comp rev card">
+    <div><span class="tag">4 · Turnero</span><h3>📅 Agenda de turnos para servicios</h3>
+      <p>Para peluquerías, consultorios, estética: un <b>banco de tiempo</b> real.</p>
+      <ul>
+        <li>Horarios por día con cortes (se arman solos desde "lun a vie 9 a 13 y 16 a 20"), <b>profesionales</b> con los servicios que hace cada uno.</li>
+        <li>El cliente elige profesional → día → <b>horario libre</b> según la duración. El servidor valida y asigna profesional.</li>
+        <li><b>Turnero por chat</b>: "¿el martes antes de las 15?" → horarios libres reales como botones → reserva.</li>
+        <li>Cancelación por el cliente, feed de calendario <b>.ics</b> y sincronización con <b>Google Calendar por API</b> (lista para activar).</li>
+      </ul></div>
+    <div class="shot"><img src="/static/img/turnos.webp" alt="Grilla de horarios libres del turnero" loading="lazy"></div>
+  </div>
+
+  <div class="comp card">
+    <div><span class="tag">5 · Panel / CRM</span><h3>📊 El panel del negocio</h3>
+      <p>Protegido con <b>clave de acceso (PIN)</b> por negocio. Pestañas:</p>
+      <ul>
+        <li><b>Pedidos en vivo</b>: tablero con sonido, estados (nuevo → confirmado → en preparación → listo → en camino → entregado), pago, <b>avisar al cliente por WhatsApp</b>, comanda a cocina por WhatsApp/email, imprimir.</li>
+        <li><b>Productos</b>: manual, CSV, foto del menú, copiar desde una URL, fotos, descripciones, stock, categorías, banners.</li>
+        <li><b>Vendedor virtual</b>: dirección, envíos, demoras, condiciones, preguntas frecuentes (lo que sabe la IA).</li>
+        <li><b>Medios de pago</b>, <b>integraciones</b> (IA propia, webhook firmado, Google Calendar, exportar menú para PedidosYa/Uber Eats/Rappi) y <b>acceso</b> (cambiar clave, cerrar sesión).</li>
+        <li><b>Compartir</b>: QR descargable para el mostrador y links para WhatsApp/redes.</li>
+      </ul></div>
+    <div class="shot"><img src="/static/img/panel.webp" alt="Panel del negocio con QR y botones para compartir" loading="lazy"></div>
+  </div>
+</section>
+
+<section>
+  <span class="k">Inteligencia artificial</span>
+  <h2>🧠 DeepSeek integrado, barato y sin alucinar</h2>
+  <div class="grid">
+    <div class="c card"><h3>Dónde usamos IA</h3><ul><li>Vendedor virtual de cada tienda</li><li>Leer fotos de menús y folletos (visión)</li><li>Extraer catálogos de webs</li><li>Launcher cuando el usuario se sale del flujo</li><li>Colores y lema para logos</li></ul></div>
+    <div class="c card"><h3>Barato</h3><ul><li>Modelo <code>deepseek-chat</code>, respuestas cortas</li><li>Caché de contexto: la ficha del negocio va primero (≈80% de tokens cacheados)</li><li>Modo híbrido: reglas para lo normal, IA solo cuando suma</li><li>Tope diario de tokens</li></ul></div>
+    <div class="c card"><h3>Confiable</h3><ul><li>La IA devuelve acciones en JSON; el servidor valida todo</li><li>Resumen y total los escribe el servidor</li><li>Si falla o se agota el saldo → modo reglas</li><li>Cada negocio puede usar <b>su propia API key</b> (DeepSeek u OpenAI)</li></ul></div>
+  </div>
+</section>
+
+<section>
+  <span class="k">Importadores</span>
+  <h2>📦 Traer el catálogo que el negocio ya tiene</h2>
+  <div class="tbl"><table>
+    <tr><th>Fuente</th><th>Cómo</th><th>Probado con</th></tr>
+    <tr><td>Tiendanube / Shopify / VTEX</td><td>Datos estructurados (JSON-LD) y rutas oficiales (<code>/products.json</code>)</td><td>Tienda de ropa: 17/17 con foto · Allbirds: 200 productos</td></tr>
+    <tr><td>Webs con API propia</td><td>Detecta la API JSON de productos que usa la página</td><td>Tienda de lencería: 24 productos, 23 fotos</td></tr>
+    <tr><td>Webs comunes</td><td>Recorre categorías y DeepSeek extrae productos; fotos por texto alternativo</td><td>Ferretería: 65/65 con foto</td></tr>
+    <tr><td>Foto del menú / folleto</td><td>DeepSeek con visión</td><td>Folleto de hamburguesas: 50 productos (&lt; 1¢)</td></tr>
+    <tr><td>Marketplaces y redes</td><td>No se fuerzan bloqueos (respeto de términos): se sugiere CSV, foto o API oficial</td><td>MercadoLibre, PedidosYa, Uber Eats, Instagram</td></tr>
+  </table></div>
+</section>
+
+<section>
+  <span class="k">Integraciones</span>
+  <h2>🔌 Conectado con lo que el negocio usa</h2>
+  <div class="tbl"><table>
+    <tr><th>Integración</th><th>Estado</th><th>Detalle</th></tr>
+    <tr><td>DeepSeek</td><td><span class="pill ok">Activa</span></td><td>IA incluida + clave propia por negocio · tutorial en <a href="/ayuda/deepseek">/ayuda/deepseek</a></td></tr>
+    <tr><td>WhatsApp</td><td><span class="pill ok">Activa</span></td><td>Avisar al cliente, comanda a cocina y compartir tienda (links). WhatsApp Business API: roadmap</td></tr>
+    <tr><td>Mercado Pago</td><td><span class="pill wip">Lista para activar</span></td><td>Checkout Pro + webhook que verifica el pago; hoy en modo manual (link/alias)</td></tr>
+    <tr><td>Google Calendar</td><td><span class="pill wip">Lista para activar</span></td><td>OAuth por negocio: crea/borra eventos y bloquea horarios ocupados (FreeBusy). Feed .ics activo</td></tr>
+    <tr><td>Webhook (API)</td><td><span class="pill ok">Activa</span></td><td>POST firmado (HMAC-SHA256) en cada pedido y cambio de estado, para cocina/ERP/delivery</td></tr>
+    <tr><td>PedidosYa · Uber Eats · Rappi</td><td><span class="pill ok">Exportación</span></td><td>Menú en CSV/JSON con fotos para cargar en cada plataforma; API de partners: roadmap</td></tr>
+  </table></div>
+</section>
+
+<section>
+  <span class="k">Cómo lo hicimos</span>
+  <h2>⚙️ Stack, infraestructura y calidad</h2>
+  <div class="grid">
+    <div class="c card"><h3>Stack liviano</h3><ul><li>Python 3.12 + FastAPI + Uvicorn</li><li>SQLite en modo WAL</li><li>HTML/CSS/JS nativo, sin frameworks ni build</li><li>Caddy (HTTPS automático, HTTP/3, compresión)</li><li>systemd, sin Docker</li></ul></div>
+    <div class="c card"><h3>Infraestructura DonWeb</h3><ul><li>VPS de DonWeb (2 vCPU, 4 GB)</li><li>Dominio <code>dwday-38964763.online</code> con DNS de DonWeb</li><li>Certificados Let's Encrypt</li><li>Usuario dedicado y servicio con sandbox</li><li>Reinicio seguro que valida el código antes</li></ul></div>
+    <div class="c card"><h3>Seguridad</h3><ul><li>Claves con scrypt, sesiones HttpOnly/Secure</li><li>Protección SSRF en toda descarga</li><li>Límites de intentos por IP</li><li>Secretos fuera del repo (revisión antes de cada push)</li><li>Escape de HTML y totales calculados en el servidor</li></ul></div>
+    <div class="c card"><h3>Pruebas</h3><ul><li>Pruebas de punta a punta por API de cada flujo</li><li>Navegador sin pantalla (Playwright) en tamaño celular</li><li>Instancia de prueba <b>sin IA</b> para validar el modo reglas</li><li>Scraping probado con sitios reales</li><li>Todo documentado en el repo (<code>docs/</code> + bitácora)</li></ul></div>
+  </div>
+</section>
+
+<section id="demo" class="demo">
+  <span class="k">Probalo</span>
+  <h2>🔗 Links de demo</h2>
+  <div class="grid">
+    <div class="c card"><h3>Crear un negocio</h3><p><a href="/crear?msg=pizzeria">/crear?msg=pizzeria</a><br>Charlá con Marcia, subí una foto de menú o pegá el link de una web y publicá.</p></div>
+    <div class="c card"><h3>Pizzería con vendedor IA</h3><p><a href="/n/don-luigi-2">/n/don-luigi-2</a><br>Tocá 💬 y pedí: "¿qué me recomendás?", "mandame 2 porciones de muzza", "nada más"…</p></div>
+    <div class="c card"><h3>Tiendas importadas de webs reales</h3><p><a href="/n/ferretera-san-luis">/n/ferretera-san-luis</a> · <a href="/n/chill-out">/n/chill-out</a> · <a href="/n/pets">/n/pets</a> · <a href="/n/nollyashop">/n/nollyashop</a></p></div>
+    <div class="c card"><h3>Turnos</h3><p><a href="/n/estilo-neon">/n/estilo-neon</a> (grilla por profesional)<br><a href="/n/soy-la-licenciada-huevo">/n/soy-la-licenciada-huevo</a> (turnero por chat: "¿qué turnos tenés el martes?")</p></div>
+    <div class="c card"><h3>Panel de un negocio</h3><p><a href="/panel/pizzeria-compartir">/panel/pizzeria-compartir</a><br>Clave de acceso de la demo: <b>1357</b></p></div>
+    <div class="c card"><h3>Documentación</h3><p>Repositorio en GitHub con README y <code>docs/</code>: arquitectura, IA con y sin DeepSeek, turnos, cuentas, deploy y bitácora completa.</p></div>
+  </div>
+</section>
+
+<section>
+  <span class="k">Próximos pasos</span>
+  <h2>🧭 Roadmap</h2>
+  <div class="grid">
+    <div class="c card"><p>🏥 Modo sanatorio: búsqueda por especialidad, sede y cobertura; datos del paciente.</p></div>
+    <div class="c card"><p>💬 WhatsApp Business API: el vendedor virtual atendiendo directo en WhatsApp.</p></div>
+    <div class="c card"><p>💳 Mercado Pago (OAuth por negocio) y 🗓️ Google Calendar activados en producción.</p></div>
+    <div class="c card"><p>🎨 Editor de diseño de la tienda y 🛵 integración con APIs de partners de delivery.</p></div>
+  </div>
+</section>
+
+<footer><span><b>Marcia Neon</b> · Hackatón DonWeb 2026</span><span>Hecho con 💜, Python y DeepSeek en un VPS de DonWeb · <a href="/">dwday-38964763.online</a></span></footer>
+</div>
+</body></html>

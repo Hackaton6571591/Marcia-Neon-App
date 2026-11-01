@@ -448,7 +448,9 @@ async def chat_vendedor(slug: str, m: ChatMsg, request: Request):
             "paso": e["paso"], "pedido": pedido, "productos": productos, "horarios": horarios}
 
 
-DISP_RE = re.compile(r"(turno|horario|disponib|libre|lugar|cu[aá]ndo|qu[eé] d[ií]a|ten[eé]s para|hay para|te queda|quedan|agenda)", re.I)
+DISP_RE = re.compile(r"(turno|horario|disponib|libre|cu[aá]ndo|qu[eé] d[ií]a|ten[eé]s|hay para|te queda|quedan|agenda|"
+                     r"para (el |la )?(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|ma[nñ]ana|hoy)|"
+                     r"antes de las|despu[eé]s de las|a las \d|qu[eé] hora|puede ser)", re.I)
 HORA_EXPLICITA = re.compile(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}|\b\d{1,2}/\d{1,2}\b.*\b\d{1,2}:\d{2}\b")
 
 
@@ -508,9 +510,30 @@ def _turnero(row, d, bp, e, texto) -> str | None:
             return "¡Claro! ¿Para qué servicio querés el turno? Elegí uno 👇 y te muestro los horarios libres."
     e["servicio_turno"] = servicio
     oc = _ocupados(row["id"], d)
-    fecha = _fecha_pedida(texto)
+    fecha = _fecha_pedida(texto) or (e.get("fecha_turno") if re.search(r"\ba las? \d|antes de|despues de|después de", texto, re.I) else None)
     if fecha:
-        slots = [f"{fecha} {x['hora']}" for x in agenda.libres(d, oc, servicio, fecha)][:12]
+        e["fecha_turno"] = fecha  # contexto: "a las 19, ¿tenés?" se refiere al día que ya se habló
+    # restricciones horarias: "antes de las 15", "después de las 18", "a las 19"
+    nt = vendedor.norm(texto)
+    antes = re.search(r"antes de las? (\d{1,2})", nt)
+    despues = re.search(r"despues de las? (\d{1,2})", nt)
+    exacta = re.search(r"\ba las? (\d{1,2})(?::(\d{2}))?", nt)
+    def filtro(h):
+        hh = int(h[:2])
+        if antes and not hh < int(antes.group(1)):
+            return False
+        if despues and not hh >= int(despues.group(1)):
+            return False
+        if exacta and not antes and not despues and hh != int(exacta.group(1)):
+            return False
+        return True
+    if fecha:
+        todos = [f"{fecha} {x['hora']}" for x in agenda.libres(d, oc, servicio, fecha)]
+        slots = [x for x in todos if filtro(x[11:16])][:12]
+        if todos and not slots:
+            e["ofrecidos"] = {agenda.legible(x): x for x in todos[:8]}
+            e["_horarios"] = [{"valor": x, "txt": agenda.legible(x)} for x in todos[:8]]
+            return f"En ese horario no tengo 😕 Ese día tengo libres estos turnos para **{d['items'][servicio]['nombre']}** 👇"
         if not slots:
             prox = agenda.primeros_libres(d, oc, servicio, 6)
             e["ofrecidos"] = {agenda.legible(x): x for x in prox}
@@ -518,7 +541,7 @@ def _turnero(row, d, bp, e, texto) -> str | None:
             return (f"Ese día no me quedan turnos 😕 Los próximos libres para **{d['items'][servicio]['nombre']}** son estos 👇"
                     if prox else "No tengo turnos libres en los próximos días 😕 Escribinos y te avisamos si se libera uno.")
     else:
-        slots = agenda.primeros_libres(d, oc, servicio, 8)
+        slots = [x for x in agenda.primeros_libres(d, oc, servicio, 60) if filtro(x[11:16])][:8] or agenda.primeros_libres(d, oc, servicio, 8)
     e["ofrecidos"] = {agenda.legible(x): x for x in slots}
     e["_horarios"] = [{"valor": x, "txt": agenda.legible(x)} for x in slots]
     if not slots:
@@ -1396,6 +1419,7 @@ async def importar_url(slug: str, body: ImportarURL, request: Request, t: str = 
 
 
 class Info(BaseModel):
+    direccion: str = Field("", max_length=200)
     envio: str = Field("", max_length=300)
     demora: str = Field("", max_length=200)
     condiciones: str = Field("", max_length=500)

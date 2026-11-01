@@ -183,7 +183,7 @@ h2{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cy
   <div class="hero{% if d.portada %} has-cover{% endif %}"{% if d.portada %} style="--cover:url('{{ d.portada }}')"{% endif %}>
     <span class="tag"><i></i>Atendido por Marcia · respuesta al instante</span>
     <div class="brand">{% if d.logo %}<img class="logo-img{% if d.logo_claro %} dark{% endif %}" src="{{ d.logo }}" alt="Logo de {{ d.nombre }}">{% endif %}<h1>{{ d.nombre }}</h1></div>
-    <div class="meta"><span>{{ bp.emoji }} {{ d.rubro_texto or bp.nombre }}</span><span>🕒 {{ d.horarios }}</span>{% if d.telefono %}<span>📞 {{ d.telefono }}</span>{% endif %}</div>
+    <div class="meta"><span>{{ bp.emoji }} {{ d.rubro_texto or bp.nombre }}</span><span>🕒 {{ d.horarios }}</span>{% if d.telefono %}<span>📞 {{ d.telefono }}</span>{% endif %}{% if (d.info or {}).direccion %}<span>📍 <a href="https://www.google.com/maps/search/?api=1&query={{ d.info.direccion|urlencode }}" target="_blank" rel="noopener">{{ d.info.direccion }}</a></span>{% endif %}</div>
     <div class="askbox" data-open-chat role="button" tabindex="0"><span>💬 “{{ ('quiero un turno de ' ~ ej|lower) if bp.modo == 'turnos' else ('mandame 2 de ' ~ ej|lower) }}”</span><button class="btn btn-neon" type="button">Pedí por chat</button></div>
   </div>
 
@@ -392,7 +392,8 @@ async function enviar(texto){
   texto=(texto??ci.value).trim();if(!texto||busy)return;busy=true;ci.value='';add('u',esc(texto));
   const typ=add('a','<span class="typing"><i></i><i></i><i></i></span>');
   try{
-    const r=await fetch(`/api/n/${SLUG}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat:CHAT,texto,carrito:{...sel}})});
+    const pedir=()=>fetch(`/api/n/${SLUG}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat:CHAT,texto,carrito:{...sel}})});
+    let r;try{r=await pedir()}catch(e){await new Promise(ok=>setTimeout(ok,2000));r=await pedir()}  // 1 reintento
     const j=await r.json();typ.remove();
     if(!r.ok){add('a',esc(j.detail||'Ups, probá de nuevo.'));return}
     CHAT=j.chat;try{sessionStorage.setItem('chat_'+SLUG,CHAT)}catch(e){}

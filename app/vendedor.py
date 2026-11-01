@@ -83,7 +83,7 @@ def ficha(d: dict, bp: dict, pagos: dict) -> str:
         cat = f" [{it['categoria']}]" if it.get("categoria") else ""
         desc = f" ({it['descripcion'][:70]})" if it.get("descripcion") else ""
         lineas.append(f"{i}|{it['nombre']}|{it['precio']}{dur}{cat}{st}{desc}")
-    extra = [f"{k}: {v}" for k, v in (("Envío", info.get("envio")), ("Demora", info.get("demora")),
+    extra = [f"{k}: {v}" for k, v in (("Dirección", info.get("direccion")), ("Envío", info.get("envio")), ("Demora", info.get("demora")),
                                         ("Condiciones", info.get("condiciones")), ("FAQ", info.get("faq"))) if v]
     return "\n".join([f"NEGOCIO: {d['nombre']} ({'turnos' if bp['modo'] == 'turnos' else 'pedidos'})",
                       f"Horarios: {d.get('horarios') or '-'}" + (f" | Tel: {d['telefono']}" if d.get("telefono") else ""),
@@ -193,6 +193,8 @@ def _faq(d: dict, bp: dict, pagos: dict, n: str) -> str | None:
         return f"⏱️ {info['demora']}" if info.get("demora") else "⏱️ La demora depende del momento; el local te la confirma al recibir el pedido."
     if re.search(r"pag|tarjeta|efectivo|mercado|transfer|debito|credito", n):
         return "💳 Podés pagar con: " + ", ".join(NOMBRES_PAGO[k] for k in pagos) + "."
+    if re.search(r"donde (queda|estan|es)|direccion|ubicacion|como llego|local queda", n):
+        return f"📍 Estamos en {info['direccion']}." if info.get("direccion") else "📍 La dirección te la confirma el local por WhatsApp al reservar."
     if re.search(r"horario|abren|abierto|atienden|cierran", n):
         return f"🕒 Atendemos {d.get('horarios')}."
     if re.search(r"condicion|devolu|cambio|garantia|minimo|factura", n):

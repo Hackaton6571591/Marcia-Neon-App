@@ -174,6 +174,7 @@ code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(-
       <h3>Lo que sabe tu vendedor virtual</h3>
       <p class="muted" style="margin:0">Además de tu catálogo, precios, horarios y medios de pago, el vendedor responde con esta información. Si algo no está, le dice al cliente que el local lo confirma (nunca inventa).</p>
       {% set inf = d.info or {} %}
+      <label>📍 Dirección del local<input id="iDir" maxlength="200" placeholder="ej: Av. Corrientes 1234, CABA" value="{{ inf.direccion or '' }}"></label>
       {% if bp.modo != 'turnos' %}
       <label>🛵 Envíos: costo y zona<textarea id="iEnv" maxlength="300" rows="2" placeholder="ej: Envío $1.500 en un radio de 20 cuadras. Gratis en pedidos de más de $30.000. También podés retirar.">{{ inf.envio or '' }}</textarea></label>
       <label>⏱️ Demora de entrega<input id="iDem" maxlength="200" placeholder="ej: 30 a 45 minutos" value="{{ inf.demora or '' }}"></label>
@@ -381,7 +382,7 @@ $('#dSave').onclick=async()=>{try{const j=await api('despacho',{method:'PUT',hea
   DESP.whatsapp=j.whatsapp;DESP.email=j.email;$('#dSec').textContent=j.secreto;renderPeds();msg($('#dMsg'),'✓ Guardado',1)}catch(e){msg($('#dMsg'),e.message)}};
 if($('#expCsv')){$('#expCsv').href=`/api/panel/${SLUG}/exportar?formato=csv&t=${encodeURIComponent(T)}`;$('#expJson').href=`/api/panel/${SLUG}/exportar?formato=json&t=${encodeURIComponent(T)}`}
 $('#saveInfo').onclick=async()=>{const v=id=>{const el=$(id);return el?el.value:''};
-  try{await api('info',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({envio:v('#iEnv'),demora:v('#iDem'),condiciones:v('#iCon'),faq:v('#iFaq')})});msg($('#infoMsg'),'✓ Guardado',1)}catch(e){msg($('#infoMsg'),e.message)}};
+  try{await api('info',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({direccion:v('#iDir'),envio:v('#iEnv'),demora:v('#iDem'),condiciones:v('#iCon'),faq:v('#iFaq')})});msg($('#infoMsg'),'✓ Guardado',1)}catch(e){msg($('#infoMsg'),e.message)}};
 $('#savePay').onclick=async()=>{
   try{await api('pagos',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({efectivo:$('#pEf').checked,mp:$('#pMpOn').checked,mercadopago:$('#pMp').value,transferencia:$('#pTr').value})});
     msg($('#payMsg'),'✓ Guardado',1)}catch(e){msg($('#payMsg'),e.message)}

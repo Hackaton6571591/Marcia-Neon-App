@@ -2,6 +2,14 @@
 
 > Definida por el equipo el 2026-11-01. Es el norte del producto; el MVP de la hackatón implementa una parte.
 
+## Dos modelos, nada más (decisión del equipo)
+| Modelo | Rubros | Qué se despliega |
+|---|---|---|
+| **Productos físicos** | restaurante, rotisería, ferretería, almacén, comercio… | El **mismo** ecommerce: tienda + carrito + checkout + panel de pedidos. Solo cambia el catálogo. |
+| **Servicios = turnos** | peluquería, consultorio, estética… | Un **banco de tiempo**: servicios con duración, reserva de franjas sin superposición, **integración con la agenda** del negocio. |
+
+En el código: blueprints `restaurante` y `comercio` → modo `pedidos`; blueprint `turnos` → modo `turnos`.
+
 ## Qué es
 Una **solución de ecommerce simplificada y hecha a medida** para el negocio, creada por Marcia (IA) a partir de una charla.
 
@@ -29,6 +37,11 @@ Una **solución de ecommerce simplificada y hecha a medida** para el negocio, cr
 | Chatbot de pedidos conversacional en la tienda | 🔜 (DeepSeek / Claude / ChatGPT) |
 | WhatsApp Business API | 🔜 (placeholder en panel) |
 | CRM de clientes (historial, recompra) | 🔜 |
+| Turnos: sin superposición (según duración del servicio), no se reserva en el pasado | ✅ |
+| Turnos: la tienda muestra las franjas ocupadas del día elegido | ✅ |
+| Agenda: feed iCalendar privado (Google Calendar / Apple / Outlook se suscriben) | ✅ |
+| Agenda: sincronización bidireccional con Google Calendar API (bloquear horarios desde la agenda) | 🔜 |
+| Turnos: franjas según horario de atención estructurado | 🔜 (hoy el horario es texto libre) |
 
 ## Activar Mercado Pago (cuando se quiera)
 En `/home/hackaton/creador-ia/.env`:

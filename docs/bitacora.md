@@ -36,3 +36,5 @@ Registro cronológico. Cada acción relevante se agrega acá.
 - El equipo definió la **visión del producto** (ecommerce simplificado + CRM + chatbot de pedidos + WhatsApp API): `vision-producto.md`.
 - Panel con pestañas: carga manual de productos, **importación CSV**, **medios de pago** (efectivo, Mercado Pago, transferencia), integraciones (próximamente). La tienda permite elegir medio de pago.
 - **Mercado Pago Checkout Pro** implementado en `app/mercadopago.py` (preferencia + webhook que re-consulta el pago). Se activa con `MERCADOPAGO_ACCESS_TOKEN` en `.env`; para la hackatón queda en modo manual (decisión del equipo).
+- Decisión del equipo: **dos modelos** de solución. Productos físicos → mismo ecommerce. Servicios → **turnos como banco de tiempo** con integración a la agenda del cliente.
+- Turnos: validación de superposición por duración, bloqueo de fechas pasadas, endpoint de franjas ocupadas, y **feed iCalendar privado** (`/agenda/{slug}.ics?t=`) para suscribirse desde Google/Apple/Outlook. Sincronización bidireccional con Google Calendar queda en roadmap.

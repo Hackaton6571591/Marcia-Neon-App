@@ -109,6 +109,14 @@ code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(-
   </section>
 
   <section data-sec="integraciones" hidden>
+    {% if bp.modo == 'turnos' %}
+    <div class="box card"><h3>📅 Sincronizar con tu agenda <span class="tag"><i></i>Activo</span></h3>
+      <p class="muted" style="margin-top:0">Agregá este link en tu calendario y vas a ver cada turno nuevo automáticamente. Es privado: no lo compartas.</p>
+      <input readonly id="ics" onclick="this.select()">
+      <div class="acts"><button class="btn btn-neon" id="copyIcs">Copiar link</button><span class="msg" id="icsMsg"></span></div>
+      <p class="muted" style="font-size:.85rem;margin-bottom:0"><b>Google Calendar:</b> Otros calendarios → + → Desde URL → pegar.<br><b>iPhone/Mac:</b> Calendario → Archivo → Nueva suscripción.<br><b>Outlook:</b> Agregar calendario → Suscribirse desde la web.<br>Próximamente: sincronización en las dos direcciones con Google Calendar (bloquear horarios desde tu agenda).</p>
+    </div>
+    {% endif %}
     <div class="box card soon"><h3>💬 WhatsApp Business API <span class="tag">Próximamente</span></h3><p class="muted" style="margin:0">Marcia responde y toma pedidos directo en tu WhatsApp, y te avisa de cada pedido nuevo.</p></div>
     <div class="box card soon"><h3>🤖 Chatbot de pedidos en tu tienda <span class="tag">Próximamente</span></h3><p class="muted" style="margin:0">Tus clientes piden conversando: "mandame 2 porciones de muzza, ¿qué empanadas tenés?". Con DeepSeek, Claude o ChatGPT.</p></div>
     <div class="box card soon"><h3>🔵 Mercado Pago Checkout <span class="tag">Próximamente</span></h3><p class="muted" style="margin:0">Cobro online con confirmación automática del pago en el pedido.</p></div>
@@ -147,6 +155,8 @@ $('#upCsv').onclick=async()=>{
   try{const j=await api('csv'+($('#reemplazar').checked?'?reemplazar=true':''),{method:'POST',headers:{'Content-Type':'text/csv'},body:await f.text()});
     items=j.items;renderItems();msg($('#csvMsg'),`✓ ${j.importados} importados`,1)}catch(e){msg($('#csvMsg'),e.message)}
 };
+if($('#ics')){$('#ics').value=`${location.origin}/agenda/${SLUG}.ics?t=${encodeURIComponent(T)}`;
+  $('#copyIcs').onclick=async()=>{try{await navigator.clipboard.writeText($('#ics').value);msg($('#icsMsg'),'✓ Copiado',1)}catch(e){$('#ics').select();msg($('#icsMsg'),'Seleccionado: copialo con Ctrl+C',1)}}}
 $('#savePay').onclick=async()=>{
   try{await api('pagos',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({efectivo:$('#pEf').checked,mercadopago:$('#pMp').value,transferencia:$('#pTr').value})});
     msg($('#payMsg'),'✓ Guardado',1)}catch(e){msg($('#payMsg'),e.message)}

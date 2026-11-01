@@ -78,7 +78,10 @@ document.querySelectorAll('.qty').forEach(q=>{
   q.querySelector('.add').onclick=()=>{const i=q.dataset.i;if(turnos){for(const k in sel)delete sel[k]}sel[i]=Math.min(50,(sel[i]||0)+1);if(turnos)sel[i]=1;upd()};
   q.querySelector('.rm').onclick=()=>{const i=q.dataset.i;sel[i]=Math.max(0,(sel[i]||0)-1);upd()};
 });
-if(turnos){const d=document.querySelector('[name=dia]');if(d)d.min=new Date().toISOString().slice(0,10)}
+if(turnos){const d=document.querySelector('[name=dia]');if(d){d.min=new Date().toISOString().slice(0,10);
+  const occ=document.createElement('div');occ.className='muted';occ.style.fontSize='.85rem';d.parentNode.after(occ);
+  d.onchange=async()=>{occ.textContent='';if(!d.value)return;try{const r=await fetch(`/api/n/{{ slug }}/ocupados?dia=${d.value}`);const l=await r.json();
+    occ.textContent=l.length?'⛔ Ocupado: '+l.map(x=>x.desde+'–'+x.hasta).join(', '):'✅ Día libre, elegí tu horario'}catch(e){}}}}
 $('#go').onclick=async()=>{
   const f=$('#f'); if(!f.reportValidity())return;
   const items={};for(const k in sel)if(sel[k]>0)items[k]=sel[k];

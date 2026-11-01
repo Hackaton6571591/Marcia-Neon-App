@@ -219,6 +219,8 @@ async def crear_pedido(slug: str, p: Pedido, request: Request):
         raise HTTPException(400, "Elegí al menos un producto o servicio.")
     if bp["modo"] == "turnos" and not p.cuando:
         raise HTTPException(400, "Elegí día y horario para el turno.")
+    if bp["modo"] == "turnos":
+        _validar_turno(row["id"], d, detalle, p.cuando)
     pagos = _pagos(d)
     if p.pago not in pagos:
         raise HTTPException(400, "Medio de pago no disponible.")
@@ -252,6 +254,83 @@ async def mp_webhook(request: Request):
             with db() as c:
                 c.execute("UPDATE pedidos SET estado='pagado' WHERE id=? AND pago='mercadopago'", (int(ref),))
     return {"ok": True}
+
+
+def _duracion(d: dict, detalle: list[dict]) -> int:
+    dur = {it["nombre"]: it.get("duracion_min", 30) for it in d["items"]}
+    return sum(dur.get(x["nombre"], 30) * x["cantidad"] for x in detalle)
+
+
+def _validar_turno(negocio_id: int, d: dict, detalle: list[dict], cuando: str):
+    """Banco de tiempo: rechaza turnos en el pasado o superpuestos con otro turno del negocio."""
+    from datetime import datetime, timedelta
+    try:
+        ini = datetime.strptime(cuando.strip(), "%Y-%m-%d %H:%M")
+    except ValueError:
+        raise HTTPException(400, "Fecha u hora inválida.")
+    if ini < datetime.now() - timedelta(minutes=5):
+        raise HTTPException(400, "Ese horario ya pasó.")
+    fin = ini + timedelta(minutes=_duracion(d, detalle))
+    with db() as c:
+        for r in c.execute("SELECT cuando, detalle FROM pedidos WHERE negocio_id=? AND tipo='turnos' AND cuando LIKE ?",
+                           (negocio_id, ini.strftime("%Y-%m-%d") + "%")):
+            try:
+                oi = datetime.strptime(r["cuando"], "%Y-%m-%d %H:%M")
+            except ValueError:
+                continue
+            of = oi + timedelta(minutes=_duracion(d, json.loads(r["detalle"])))
+            if ini < of and oi < fin:
+                raise HTTPException(409, f"Ese horario ya está reservado ({oi:%H:%M}–{of:%H:%M}). Elegí otro.")
+
+
+@app.get("/api/n/{slug}/ocupados")
+def ocupados(slug: str, dia: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$")):
+    """Franjas ocupadas de un día (sin datos personales), para mostrarlas en la tienda."""
+    from datetime import datetime, timedelta
+    row, d, bp = _negocio(slug)
+    out = []
+    with db() as c:
+        for r in c.execute("SELECT cuando, detalle FROM pedidos WHERE negocio_id=? AND tipo='turnos' AND cuando LIKE ?",
+                           (row["id"], dia + "%")):
+            try:
+                oi = datetime.strptime(r["cuando"], "%Y-%m-%d %H:%M")
+            except ValueError:
+                continue
+            out.append({"desde": f"{oi:%H:%M}", "hasta": f"{oi + timedelta(minutes=_duracion(d, json.loads(r['detalle']))):%H:%M}"})
+    return sorted(out, key=lambda x: x["desde"])
+
+
+@app.get("/agenda/{slug}.ics")
+def agenda_ics(slug: str, t: str = ""):
+    """Feed iCalendar privado: se suscribe desde Google Calendar / Apple / Outlook."""
+    from datetime import datetime, timedelta
+    from fastapi.responses import Response
+    row, d, bp = _negocio(slug)
+    if not secrets.compare_digest(t, row["token_admin"]):
+        raise HTTPException(403)
+    esc = lambda x: str(x or "").replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
+    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Marcia Neon//Turnos//ES", "CALSCALE:GREGORIAN",
+             f"X-WR-CALNAME:Turnos {esc(d['nombre'])}", "X-WR-TIMEZONE:America/Argentina/Buenos_Aires"]
+    with db() as c:
+        rows = c.execute("SELECT * FROM pedidos WHERE negocio_id=? AND tipo='turnos' ORDER BY id DESC LIMIT 500",
+                         (row["id"],)).fetchall()
+    stamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    for r in rows:
+        try:
+            ini = datetime.strptime(r["cuando"], "%Y-%m-%d %H:%M")
+        except (TypeError, ValueError):
+            continue
+        det = json.loads(r["detalle"])
+        fin = ini + timedelta(minutes=_duracion(d, det))
+        serv = ", ".join(x["nombre"] for x in det)
+        lines += ["BEGIN:VEVENT", f"UID:turno-{r['id']}@marcia-neon", f"DTSTAMP:{stamp}",
+                  f"DTSTART;TZID=America/Argentina/Buenos_Aires:{ini:%Y%m%dT%H%M%S}",
+                  f"DTEND;TZID=America/Argentina/Buenos_Aires:{fin:%Y%m%dT%H%M%S}",
+                  f"SUMMARY:{esc(serv + ' · ' + r['cliente'])}",
+                  f"DESCRIPTION:{esc('Contacto: ' + (r['contacto'] or '-') + chr(10) + 'Nota: ' + (r['nota'] or '-'))}",
+                  "END:VEVENT"]
+    lines.append("END:VCALENDAR")
+    return Response("\r\n".join(lines) + "\r\n", media_type="text/calendar; charset=utf-8")
 
 
 def _pagos(d: dict) -> dict:

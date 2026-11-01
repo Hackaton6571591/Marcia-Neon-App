@@ -70,6 +70,12 @@ Pestañas: **Pedidos** (KPIs, medio de pago, estado pagado) · **Productos** (ed
 
 El cliente elige el medio de pago en la tienda; el servidor valida que esté habilitado. Probado: CSV con `;` y encabezado (3), CSV sin encabezado (1), edición manual, pagos, token inválido → 403, pago no habilitado → 400.
 
+## Turnos (banco de tiempo) e integración con agenda
+- Al reservar, el servidor calcula la duración (suma de servicios) y rechaza con **409** si se superpone con otro turno del mismo día, o con 400 si es en el pasado.
+- `GET /api/n/{slug}/ocupados?dia=YYYY-MM-DD` → franjas ocupadas (sin datos personales); la tienda las muestra al elegir el día.
+- `GET /agenda/{slug}.ics?t={token}` → feed **iCalendar** privado con todos los turnos (zona horaria Buenos Aires). Se agrega en Google Calendar ("Desde URL"), Apple Calendar o Outlook. Link visible en Panel → Integraciones.
+- Probado: color 15:00 (90 min) OK; corte 16:00 → 409; corte 16:30 → OK; fecha pasada → 400; feed .ics válido; token inválido → 403.
+
 ## Pendiente / siguiente
 - Probar con la API key real de DeepSeek.
 - Streaming SSE de la respuesta (hoy la respuesta llega completa).

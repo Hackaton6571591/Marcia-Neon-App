@@ -60,6 +60,12 @@ h2{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cy
 .cats{top:56px!important;margin:16px -16px 0!important;background:rgba(7,6,15,.94)!important;border-bottom:1px solid var(--line)}
 .cats a.on{background:var(--grad);color:#0b0716;border-color:transparent}
 .catsec{scroll-margin-top:118px}
+.folletos{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;margin:16px -16px 0;padding:0 16px}
+.fol{flex:none;width:min(86%,520px);scroll-snap-align:center;border:0;padding:0;background:none;border-radius:18px;overflow:hidden;cursor:zoom-in;box-shadow:0 10px 30px -14px #000}
+.fol img{width:100%;height:auto;max-height:360px;object-fit:cover;display:block}
+.folletos .fol:only-child{width:100%}
+.fol-full{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.92);display:grid;place-items:center;padding:16px;cursor:zoom-out}
+.fol-full img{max-width:100%;max-height:100%;object-fit:contain;border-radius:12px}
 .nores{padding:30px 10px;text-align:center;color:var(--muted)}
 .pic{border:0;padding:0;background:none;cursor:pointer;position:relative;flex:none;border-radius:16px;overflow:hidden}
 .txt[data-ficha]{cursor:pointer}
@@ -166,6 +172,9 @@ h2{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cy
     <div class="askbox" data-open-chat role="button" tabindex="0"><span>💬 “{{ ('quiero un turno de ' ~ ej|lower) if bp.modo == 'turnos' else ('mandame 2 de ' ~ ej|lower) }}”</span><button class="btn btn-neon" type="button">Pedí por chat</button></div>
   </div>
 
+  {% if d.folletos %}
+  <div class="folletos" aria-label="Promociones">{% for f in d.folletos %}<button type="button" class="fol" data-fol="{{ f }}"><img src="{{ f }}" alt="Promoción {{ loop.index }}" loading="{{ 'eager' if loop.first else 'lazy' }}"></button>{% endfor %}</div>
+  {% endif %}
   {% if grupos|length > 1 %}
   <nav class="cats" id="cats">{% for cat in grupos %}<a href="#c{{ loop.index }}" data-c="c{{ loop.index }}">{{ cat }}</a>{% endfor %}</nav>
   {% endif %}
@@ -302,6 +311,7 @@ if($('#cats')){const links=[...document.querySelectorAll('#cats a')];
   const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){links.forEach(a=>a.classList.toggle('on',a.dataset.c===e.target.id));const on=links.find(a=>a.dataset.c===e.target.id);on&&on.scrollIntoView({inline:'center',block:'nearest',behavior:'smooth'})}}),{rootMargin:'-120px 0px -60% 0px'});
   document.querySelectorAll('.catsec').forEach(s=>io.observe(s))}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')cerrarBS()});
+document.querySelectorAll('[data-fol]').forEach(b=>b.onclick=()=>{const v=document.createElement('div');v.className='fol-full';v.innerHTML=`<img src="${esc(b.dataset.fol)}" alt="">`;v.onclick=()=>v.remove();document.body.appendChild(v)});
 if(turnos){const d=document.querySelector('[name=dia]');if(d){d.min=new Date().toISOString().slice(0,10);
   const occ=document.createElement('div');occ.className='muted';occ.style.fontSize='.85rem';d.parentNode.after(occ);
   d.onchange=async()=>{occ.textContent='';if(!d.value)return;try{const r=await fetch(`/api/n/${SLUG}/ocupados?dia=${d.value}`);const l=await r.json();

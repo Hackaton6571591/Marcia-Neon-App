@@ -18,6 +18,28 @@ ETAPAS = ["rubro", "dolor", "negocio", "oferta", "horarios", "revision"]
 
 # ---------- motor ----------
 
+PREGUNTA_RE = re.compile(r"\?|^\s*(que|qué|como|cómo|cuanto|cuánto|cuando|cuándo|donde|dónde|por que|por qué|para que|para qué|"
+                         r"es gratis|se puede|puedo|tiene|tienen|sirve|hay)\b", re.I)
+
+
+def es_pregunta(t: str) -> bool:
+    return bool(PREGUNTA_RE.search(t.strip()))
+
+
+def respuesta_preparada(t: str) -> str:
+    n = t.lower()
+    if re.search(r"cuest|precio|plata|pagar|gratis|cobr|caro|vale", n):
+        return "¡Buena pregunta! 😊 Durante la hackatón Marcia es **gratis** para probar: armás tu tienda y tu vendedor virtual sin pagar nada."
+    if re.search(r"que es|qué es|como funciona|cómo funciona|para que|para qué|sirve|que hace|qué hace", n):
+        return ("Marcia te arma en minutos una **tienda online propia** (o agenda de turnos) con un **vendedor virtual** que atiende y "
+                "toma pedidos 24/7, y un panel para ver todo. Así no perdés más pedidos por WhatsApp 💪")
+    if re.search(r"whatsapp|instagram|mercado ?pago|pago", n):
+        return "Sí 🙌 Tus clientes pueden pagar en efectivo, Mercado Pago o transferencia, y vos recibís cada pedido en tu panel (y lo podés reenviar por WhatsApp)."
+    if re.search(r"tiempo|tarda|demora|rapido|rápido", n):
+        return "Se arma en un par de minutos ⏱️ Si tenés web o una foto de tu menú, todavía más rápido."
+    return "¡Buena pregunta! Te la respondo enseguida con más detalle desde el panel 😊 Mientras tanto sigamos armando tu solución."
+
+
 def etapa_actual(d: dict) -> str:
     if not d.get("blueprint"):
         return "rubro"
@@ -36,6 +58,11 @@ def progreso(d: dict) -> int:
     return round(ETAPAS.index(etapa_actual(d)) / (len(ETAPAS) - 1) * 100)
 
 
+def _ia_on() -> bool:
+    from . import ia
+    return bool(ia.credenciales()) and ia.cupo_disponible()
+
+
 def pregunta(d: dict) -> str:
     e = etapa_actual(d)
     bp = BLUEPRINTS.get(d.get("blueprint") or "", {})
@@ -45,8 +72,13 @@ def pregunta(d: dict) -> str:
         return f"¡Buenísimo! {bp['emoji']} Te armo una solución de **{'turnos online' if bp['modo']=='turnos' else 'catálogo + pedidos'}**. ¿Cómo te llegan hoy los {'turnos' if bp['modo']=='turnos' else 'pedidos'} y qué es lo que más te complica? (WhatsApp, teléfono, se pierden mensajes…)"
     if e == "negocio":
         return ("Te entiendo, eso es justo lo que vamos a resolver 💪 ¿Cómo se llama tu negocio? Si querés, sumá un teléfono. "
-                "Y si tenés **web o Instagram**, pasame el link y uso tu logo e imágenes 📸")
+                + ("Y si tenés **web, Instagram o un folleto/menú del local**, pasámelo y te armo todo 📸" if _ia_on() else
+                   "Y si tenés **web**, pasame el link y tomo tus productos y tu logo 📸"))
     if e == "oferta":
+        if _ia_on():
+            return ("📷 **Lo más rápido: subime una foto de tu " + ("lista de servicios" if bp["modo"] == "turnos" else "menú o folleto") +
+                    "** (botón 📷) y te armo todo. Si preferís, escribímelos: " + bp["pregunta_oferta"].split(". Ej:")[0].lower().lstrip("¿").rstrip("?") +
+                    ". Ej:" + bp["pregunta_oferta"].split(". Ej:")[1] if ". Ej:" in bp["pregunta_oferta"] else bp["pregunta_oferta"])
         return bp["pregunta_oferta"]
     if e == "horarios":
         return "¡Ya casi! ¿Qué días y en qué horario atendés? Ej: *lunes a sábado de 19 a 23:30*"
@@ -234,6 +266,9 @@ async def procesar(d: dict, texto: str, historia: list[dict], sesion: str = "") 
             resto = ""  # el texto que acompaña al link ("mirá mi web") no es un dato del negocio
         if partes and not resto:
             return d, " ".join(partes) + " " + pregunta(d), "simulado"
+        if not items and marca:
+            partes.insert(0, "No pude leer los productos de tu web (los carga de una forma que no puedo ver) 😕 Pasámelos escritos, "
+                             "con una **foto de tu menú** 📷 o un CSV.")
         if not partes and not resto:
             ig = "instagram.com" in url.lower()
             return d, (("Instagram no deja ver perfiles sin iniciar sesión, así que no pude tomar tu logo 😕 "
@@ -251,6 +286,9 @@ async def procesar(d: dict, texto: str, historia: list[dict], sesion: str = "") 
         bool(re.search(r"\?|\b(que es|qué es|cuanto cuesta|cuánto cuesta|precio|como funciona|cómo funciona|no entiendo|ayuda|para que|para qué|sirve|gratis|seguro)\b", texto, re.I))
     res = await extraer_deepseek(d, texto, historia) if fuera_de_flujo else None
     proveedor = "deepseek"
+    if res is None and fuera_de_flujo and es_pregunta(texto):
+        # Sin IA: una pregunta NUNCA se guarda como dato del negocio; se responde con un texto preparado
+        return d, respuesta_preparada(texto) + "\n\n" + pregunta(d), "simulado"
     if res is None:
         nuevo, respuesta, proveedor = simulado, "", "simulado"
     else:

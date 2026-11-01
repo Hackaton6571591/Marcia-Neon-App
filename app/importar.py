@@ -354,14 +354,16 @@ async def importar(url: str, servicio: bool, prefijo: str = "imp") -> tuple[list
 
 # ---------- foto del menú (DeepSeek lee imágenes) ----------
 
-async def desde_foto(datos: bytes, mime: str, servicio: bool, cred: dict | None) -> list[dict]:
+async def desde_foto(datos: bytes, mime: str, servicio: bool, cred: dict | None, folleto: bool = False) -> list[dict]:
     import base64
     from . import ia
     if not cred:
         raise ValueError("La lectura de fotos necesita la IA activa.")
-    prompt = ("Esta es la foto de un menú/lista de precios de un negocio. Extraé TODOS los productos con su precio. "
-              'Respondé SOLO JSON: {"items":[{"nombre":str,"precio":int (pesos, sin puntos),"categoria":str'
-              + (',"duracion_min":int' if servicio else "") + "}]}. No inventes nada que no esté en la imagen.")
+    prompt = (("Este es un FOLLETO promocional de un negocio. Extraé cada producto, combo o promo que tenga PRECIO "
+               "(usá el texto de la promo como nombre, ej: 'Promo martes: 2 muzzas + Coca 1,5L'; categoría 'Promos' si es una promo). ")
+              if folleto else "Esta es la foto de un menú/lista de precios de un negocio. Extraé TODOS los productos con su precio. ")
+    prompt += ('Respondé SOLO JSON: {"items":[{"nombre":str,"precio":int (pesos, sin puntos),"categoria":str'
+               + (',"duracion_min":int' if servicio else "") + "}]}. Si no hay precios, devolvé items vacío. No inventes nada que no esté en la imagen.")
     msgs = [{"role": "user", "content": [{"type": "text", "text": prompt},
              {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{base64.b64encode(datos).decode()}"}}]}]
     out = await ia.chat_json(cred, msgs, max_tokens=2500, temperature=0, timeout=60)

@@ -111,7 +111,7 @@ def crear(request: Request, rubro: str = Query("", max_length=40), msg: str = Qu
     if not inicial and rubro in ALIAS_CHIPS:
         inicial = {"restaurante": "Tengo un restaurante", "peluqueria": "Tengo una peluquería",
                    "consultorio": "Tengo un consultorio", "ferreteria": "Tengo una ferretería"}.get(rubro, "")
-    return tpl.TemplateResponse(request, "crear.html", {"inicial": inicial})
+    return tpl.TemplateResponse(request, "crear.html", {"inicial": inicial, "ia_on": bool(ia.credenciales())})
 
 
 # ---------- API launcher ----------
@@ -960,9 +960,12 @@ async def launcher_foto(sid: str, request: Request):
     if not row:
         raise HTTPException(404)
     d = json.loads(row["datos"])
+    cred = ia.credenciales() if ia.cupo_disponible() else None
+    if not cred:
+        raise HTTPException(400, "Leer fotos necesita la IA, que ahora no está disponible. Pasame los productos escritos (ej: Muzza 8000, Napo 9500) o subí un CSV desde el panel.")
     _snapshot(sid, d)
     try:
-        items = await importar.desde_foto(data, tipo, d.get("blueprint") == "turnos", ia.credenciales())
+        items = await importar.desde_foto(data, tipo, d.get("blueprint") == "turnos", cred)
     except Exception:
         raise HTTPException(400, "No pude leer la foto 😕 Probá con una más nítida o pasame los productos escritos.")
     if not items:
@@ -994,6 +997,84 @@ async def launcher_logo(sid: str, request: Request):
     with db() as c:
         c.execute("UPDATE sesiones SET datos=? WHERE id=?", (json.dumps(d, ensure_ascii=False), sid))
     return _estado(sid, d, "simulado", "📸 ¡Listo, ya tengo tu logo! " + launcher.pregunta(d))
+
+
+# ---------- folletos (banners promocionales de la tienda) ----------
+
+async def _productos_de_folleto(data: bytes, tipo: str, d: dict, cred) -> int:
+    """DeepSeek lee el folleto y suma sus productos/promos al catálogo (sin borrar los existentes)."""
+    if not cred:
+        return 0
+    try:
+        nuevos = await importar.desde_foto(data, tipo, d.get("blueprint") == "turnos", cred, folleto=True)
+    except Exception:
+        return 0
+    vistos = {launcher_norm(i["nombre"]) for i in d.get("items", [])}
+    agregar = [i for i in nuevos if launcher_norm(i["nombre"]) not in vistos]
+    if agregar:
+        d["items"] = (d.get("items", []) + agregar)[:200]
+    return len(agregar)
+
+
+def launcher_norm(t: str) -> str:
+    return re.sub(r"\W+", " ", unicodedata.normalize("NFD", t.lower())).strip()
+
+
+def _guardar_imagen(data: bytes, tipo: str, prefijo: str) -> str:
+    (DATA / "media").mkdir(exist_ok=True)
+    nombre = f"{prefijo}-{secrets.token_hex(4)}.{ {'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp'}[tipo] }"
+    (DATA / "media" / nombre).write_bytes(data)
+    return f"/media/{nombre}"
+
+
+@app.post("/api/launcher/sesion/{sid}/folleto")
+async def launcher_folleto(sid: str, request: Request):
+    limitar(request, 10, "folleto")
+    data, tipo = await _leer_foto(request)
+    with db() as c:
+        row = c.execute("SELECT datos FROM sesiones WHERE id=?", (sid,)).fetchone()
+    if not row:
+        raise HTTPException(404)
+    d = json.loads(row["datos"])
+    _snapshot(sid, d)
+    fol = d.get("folletos") or []
+    if len(fol) >= 5:
+        raise HTTPException(400, "Podés tener hasta 5 folletos.")
+    d["folletos"] = fol + [_guardar_imagen(data, tipo, "s" + re.sub(r"[^a-z0-9]", "", sid)[:12] + "-f")]
+    n = await _productos_de_folleto(data, tipo, d, ia.credenciales() if ia.cupo_disponible() else None)
+    if n:
+        d.setdefault("blueprint", "comercio")
+    with db() as c:
+        c.execute("UPDATE sesiones SET datos=? WHERE id=?", (json.dumps(d, ensure_ascii=False), sid))
+    extra = f" Además leí el folleto y sumé **{n} producto{'s' if n != 1 else ''}/promo{'s' if n != 1 else ''}** a tu catálogo 🤖." if n else ""
+    return _estado(sid, d, "deepseek" if n else "simulado",
+                   f"🖼️ ¡Folleto cargado! Lo muestro destacado arriba de tus productos ({len(d['folletos'])}/5).{extra} " + launcher.pregunta(d))
+
+
+@app.post("/api/panel/{slug}/folleto")
+async def panel_folleto(slug: str, request: Request, t: str = ""):
+    limitar(request, 10, "folleto")
+    row, d, bp = _auth(slug, t)
+    data, tipo = await _leer_foto(request)
+    fol = d.get("folletos") or []
+    if len(fol) >= 5:
+        raise HTTPException(400, "Podés tener hasta 5 folletos. Borrá uno primero.")
+    d["folletos"] = fol + [_guardar_imagen(data, tipo, f"n{row['id']}-f")]
+    n = await _productos_de_folleto(data, tipo, d, ia.credenciales(_secreto(row["id"])))
+    _guardar(row["id"], d)
+    return {"folletos": d["folletos"], "importados": n, "items": d["items"]}
+
+
+@app.delete("/api/panel/{slug}/folleto/{n}")
+def panel_folleto_borrar(slug: str, n: int, t: str = ""):
+    row, d, bp = _auth(slug, t)
+    fol = d.get("folletos") or []
+    if not 0 <= n < len(fol):
+        raise HTTPException(404)
+    fol.pop(n)
+    d["folletos"] = fol
+    _guardar(row["id"], d)
+    return {"folletos": fol}
 
 
 # ---------- asistente de logos ----------

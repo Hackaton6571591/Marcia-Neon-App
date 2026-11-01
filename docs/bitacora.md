@@ -7,7 +7,7 @@ Registro cronológico. Cada acción relevante se agrega acá.
 - Se definió la idea: creador de soluciones con IA para negocios locales (ver `idea-y-evaluacion.md`).
 - Se creó el usuario `hackaton` (sin sudo) con `useradd -m -s /bin/bash hackaton`.
 - Se creó el repo git local `/home/hackaton/creador-ia` (rama `main`) con `README.md` y `docs/`.
-- Pendiente: desafío completo de DonWeb, dominio, stack, repo público en GitHub.
+- Pendiente (en ese momento): desafío completo de DonWeb, dominio, stack, repo en GitHub.
 - Se relevaron recursos del server (2 vCPU, 3.8 GB RAM, 22 GB libres) y se eligió el stack: Python + FastAPI + SQLite + Caddy. Ver `arquitectura.md`.
 - Se instalaron como root `python3-venv` y `python3-pip` (apt).
 - Como `hackaton`, se creó `.venv` y se instalaron `fastapi`, `uvicorn[standard]`, `httpx`, `jinja2`, `python-multipart`.
@@ -17,3 +17,6 @@ Registro cronológico. Cada acción relevante se agrega acá.
 - Se generó una deploy key ed25519 para `hackaton` (`~/.ssh/deploy_marcia_neon`, sin passphrase, permisos 600). Solo la clave pública se comparte. Se configuró `~/.ssh/config` y `known_hosts` (huella de GitHub verificada).
 - Se configuró `origin` = `git@github.com:Hackaton6571591/Marcia-Neon-App.git`. Pendiente: que se cargue la deploy key en GitHub y hacer el primer push.
 - Deploy key cargada en GitHub (huella mctLeY6w…Mlq4 verificada, acceso read/write). Primer commit y push a `main`.
+- Commit inicial `25f8aaa` subido a `origin/main`. Revisión de secretos sin coincidencias. Identidad git del repo: `hackaton@users.noreply.github.com` (para no exponer emails personales).
+- El proyecto pasa a llamarse **Marcia Neon App** (repo `Marcia-Neon-App`). Se actualizó el README.
+- Se diseñó la arquitectura de la landing y el launcher en `arquitectura-landing-launcher.md`: máquina de estados por etapas, blueprints JSON por rubro, capa de IA intercambiable (DeepSeek + simulado de respaldo), extractor JSON y respuesta en streaming en paralelo, eventos SSE, modelo de datos SQLite, API, estructura de carpetas y plan de construcción.

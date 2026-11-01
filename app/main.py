@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
-from . import ia, importar, launcher, logos, mercadopago, vendedor
+from . import agenda, ia, importar, launcher, logos, mercadopago, vendedor
 from .blueprints import ALIAS_CHIPS, BLUEPRINTS
 
 BASE = Path(__file__).parent
@@ -70,7 +70,8 @@ def init_db():
         cols = [r[1] for r in c.execute("PRAGMA table_info(pedidos)")]
         if "pago" not in cols:
             c.execute("ALTER TABLE pedidos ADD COLUMN pago TEXT")
-        for col, tipo in (("pagado", "INT DEFAULT 0"), ("seguimiento", "TEXT"), ("historial", "TEXT"), ("actualizado", "INT")):
+        for col, tipo in (("pagado", "INT DEFAULT 0"), ("seguimiento", "TEXT"), ("historial", "TEXT"), ("actualizado", "INT"),
+                          ("profesional", "TEXT")):
             if col not in cols:
                 c.execute(f"ALTER TABLE pedidos ADD COLUMN {col} {tipo}")
         c.execute("UPDATE pedidos SET pagado=1, estado='nuevo' WHERE estado='pagado'")
@@ -225,6 +226,8 @@ def publicar(sid: str, request: Request):
         while c.execute("SELECT 1 FROM negocios WHERE slug=?", (slug,)).fetchone():
             slug, i = f"{base}-{i}", i + 1
         token = secrets.token_urlsafe(16)
+        if d.get("blueprint") == "turnos" and not d.get("agenda"):
+            d["agenda"] = agenda.parse_horarios(d.get("horarios", "")) or agenda.DEFECTO
         c.execute("INSERT INTO negocios(slug,datos,token_admin,creado) VALUES(?,?,?,?)",
                   (slug, json.dumps(d, ensure_ascii=False), token, int(time.time())))
     return {"slug": slug, "url": f"/n/{slug}", "url_panel": f"/panel/{slug}?t={token}"}
@@ -289,16 +292,19 @@ class Pedido(BaseModel):
     cuando: str = Field("", max_length=40)
     nota: str = Field("", max_length=300)
     pago: str = Field("efectivo", max_length=20)
+    profesional: str = Field("", max_length=20)
 
 
 @app.post("/api/n/{slug}/pedido")
 async def crear_pedido(slug: str, p: Pedido, request: Request):
     limitar(request, 10, "pedido")
     row, d, bp = _negocio(slug)
-    return await _registrar_pedido(request, slug, row, d, bp, p.items, p.cliente, p.contacto, p.cuando, p.nota, p.pago)
+    return await _registrar_pedido(request, slug, row, d, bp, p.items, p.cliente, p.contacto, p.cuando, p.nota, p.pago,
+                                   p.profesional)
 
 
-async def _registrar_pedido(request, slug, row, d, bp, items: dict, cliente, contacto, cuando, nota, pago) -> dict:
+async def _registrar_pedido(request, slug, row, d, bp, items: dict, cliente, contacto, cuando, nota, pago,
+                            profesional: str = "") -> dict:
     """Única vía para crear pedidos/turnos (formulario y vendedor virtual). Total calculado acá."""
     detalle, total = [], 0
     for idx, cant in items.items():
@@ -313,8 +319,9 @@ async def _registrar_pedido(request, slug, row, d, bp, items: dict, cliente, con
         raise HTTPException(400, "Elegí al menos un producto o servicio.")
     if bp["modo"] == "turnos" and not cuando:
         raise HTTPException(400, "Elegí día y horario para el turno.")
+    prof = ""
     if bp["modo"] == "turnos":
-        _validar_turno(row["id"], d, detalle, cuando)
+        prof = _validar_turno(row["id"], d, detalle, cuando, profesional)
     pagos = _pagos(d)
     if pago not in pagos:
         raise HTTPException(400, "Medio de pago no disponible.")
@@ -322,10 +329,10 @@ async def _registrar_pedido(request, slug, row, d, bp, items: dict, cliente, con
         ahora = int(time.time())
         seg = secrets.token_urlsafe(10)
         cur = c.execute("INSERT INTO pedidos(negocio_id,tipo,cliente,contacto,detalle,total,cuando,nota,pago,creado,"
-                        "estado,seguimiento,historial,actualizado) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        "estado,seguimiento,historial,actualizado,profesional) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                         (row["id"], bp["modo"], cliente[:60], (contacto or "")[:40], json.dumps(detalle, ensure_ascii=False),
                          total, cuando or "", (nota or "")[:300], pago, ahora, "nuevo", seg,
-                         json.dumps([{"estado": "nuevo", "ts": ahora}]), ahora))
+                         json.dumps([{"estado": "nuevo", "ts": ahora}]), ahora, prof))
     numero = cur.lastrowid
     _webhook(d, "pedido.creado", _pedido_publico(numero))
     if any(d["items"][int(k)].get("stock") is not None for k in items if 0 <= int(k) < len(d["items"])):
@@ -515,43 +522,120 @@ def _duracion(d: dict, detalle: list[dict]) -> int:
     return sum(dur.get(x["nombre"], 30) * x["cantidad"] for x in detalle)
 
 
-def _validar_turno(negocio_id: int, d: dict, detalle: list[dict], cuando: str):
-    """Banco de tiempo: rechaza turnos en el pasado o superpuestos con otro turno del negocio."""
-    from datetime import datetime, timedelta
-    try:
-        ini = datetime.strptime(cuando.strip(), "%Y-%m-%d %H:%M")
-    except ValueError:
-        raise HTTPException(400, "Fecha u hora inválida.")
-    if ini < datetime.now() - timedelta(minutes=5):
-        raise HTTPException(400, "Ese horario ya pasó.")
-    fin = ini + timedelta(minutes=_duracion(d, detalle))
+def _ocupados(negocio_id: int, d: dict) -> list[tuple]:
+    """Turnos que ocupan agenda: (cuando, duración, profesional). Los cancelados liberan el horario."""
     with db() as c:
-        for r in c.execute("SELECT cuando, detalle FROM pedidos WHERE negocio_id=? AND tipo='turnos' AND cuando LIKE ?",
-                           (negocio_id, ini.strftime("%Y-%m-%d") + "%")):
-            try:
-                oi = datetime.strptime(r["cuando"], "%Y-%m-%d %H:%M")
-            except ValueError:
-                continue
-            of = oi + timedelta(minutes=_duracion(d, json.loads(r["detalle"])))
-            if ini < of and oi < fin:
-                raise HTTPException(409, f"Ese horario ya está reservado ({oi:%H:%M}–{of:%H:%M}). Elegí otro.")
+        rows = c.execute("SELECT cuando, detalle, profesional FROM pedidos WHERE negocio_id=? AND tipo='turnos' "
+                         "AND estado NOT IN ('cancelado') AND cuando != ''", (negocio_id,)).fetchall()
+    return [(r["cuando"], _duracion(d, json.loads(r["detalle"])), r["profesional"] or "") for r in rows]
+
+
+def _indice_servicio(d: dict, detalle: list[dict]) -> int:
+    nombres = [it["nombre"] for it in d["items"]]
+    return nombres.index(detalle[0]["nombre"]) if detalle and detalle[0]["nombre"] in nombres else 0
+
+
+def _validar_turno(negocio_id: int, d: dict, detalle: list[dict], cuando: str, profesional: str = "") -> str:
+    """El horario tiene que estar LIBRE según la agenda (horarios del local, duración, profesional).
+    Devuelve el profesional asignado ('' si el negocio no usa profesionales)."""
+    cuando = (cuando or "").strip()
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}", cuando):
+        raise HTTPException(400, "Elegí día y horario para el turno.")
+    servicio = _indice_servicio(d, detalle)
+    lib = agenda.libres(d, _ocupados(negocio_id, d), servicio, cuando[:10], profesional or None)
+    slot = next((x for x in lib if x["hora"] == cuando[11:16]), None)
+    if not slot:
+        raise HTTPException(409, "Ese horario ya no está disponible 😕 Elegí otro de la lista.")
+    return "" if slot["profesionales"] == ["_"] else slot["profesionales"][0]
+
+
+@app.get("/api/n/{slug}/disponibilidad")
+def disponibilidad(slug: str, servicio: int = 0, fecha: str = Query("", pattern=r"^(\d{4}-\d{2}-\d{2})?$"), prof: str = ""):
+    """Horarios libres de un día para un servicio (sin datos personales)."""
+    row, d, bp = _negocio(slug)
+    oc = _ocupados(row["id"], d)
+    pros = [{"id": p["id"], "nombre": p["nombre"]} for p in agenda.profesionales(d) if agenda.hace(p, servicio)]
+    dias = agenda.proximos_dias(d, oc, servicio, prof or None)
+    if not fecha:
+        fecha = next((x["fecha"] for x in dias if x["libres"]), dias[0]["fecha"])
+    return {"fecha": fecha, "dias": dias, "libres": agenda.libres(d, oc, servicio, fecha, prof or None), "profesionales": pros}
 
 
 @app.get("/api/n/{slug}/ocupados")
 def ocupados(slug: str, dia: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$")):
-    """Franjas ocupadas de un día (sin datos personales), para mostrarlas en la tienda."""
-    from datetime import datetime, timedelta
+    """(compatibilidad) Franjas ocupadas de un día."""
     row, d, bp = _negocio(slug)
     out = []
-    with db() as c:
-        for r in c.execute("SELECT cuando, detalle FROM pedidos WHERE negocio_id=? AND tipo='turnos' AND cuando LIKE ?",
-                           (row["id"], dia + "%")):
-            try:
-                oi = datetime.strptime(r["cuando"], "%Y-%m-%d %H:%M")
-            except ValueError:
-                continue
-            out.append({"desde": f"{oi:%H:%M}", "hasta": f"{oi + timedelta(minutes=_duracion(d, json.loads(r['detalle']))):%H:%M}"})
+    for cuando, dur, pr in _ocupados(row["id"], d):
+        if cuando.startswith(dia):
+            h, m = int(cuando[11:13]), int(cuando[14:16])
+            fin = h * 60 + m + dur
+            out.append({"desde": cuando[11:16], "hasta": f"{fin // 60:02d}:{fin % 60:02d}"})
     return sorted(out, key=lambda x: x["desde"])
+
+
+@app.post("/api/n/{slug}/pedido/{pid}/cancelar")
+def cancelar_cliente(slug: str, pid: int, k: str = ""):
+    """El cliente cancela su turno desde el link de seguimiento (libera el horario)."""
+    row, d, bp, p = _pedido_cliente(slug, pid, k)
+    if p["estado"] not in ("nuevo", "confirmado"):
+        raise HTTPException(400, "Este turno ya no se puede cancelar.")
+    ahora = int(time.time())
+    with db() as c:
+        c.execute("UPDATE pedidos SET estado='cancelado', historial=?, actualizado=? WHERE id=?",
+                  (json.dumps(p["historial"] + [{"estado": "cancelado", "ts": ahora, "por": "cliente"}]), ahora, pid))
+    p2 = _pedido_publico(pid)
+    _webhook(d, "pedido.estado", p2)
+    return {"ok": True, "estado": "cancelado"}
+
+
+class AgendaCfg(BaseModel):
+    dias: dict[str, list[list[str]]]
+    intervalo: int = Field(15, ge=5, le=120)
+    anticipacion: int = Field(60, ge=0, le=10080)
+    dias_adelante: int = Field(30, ge=1, le=180)
+
+
+@app.put("/api/panel/{slug}/agenda")
+def guardar_agenda(slug: str, cfg: AgendaCfg, t: str = ""):
+    row, d, bp = _auth(slug, t)
+    dias = {}
+    for k, franjas in cfg.dias.items():
+        if k not in [str(i) for i in range(7)]:
+            continue
+        ok = []
+        for f in franjas[:4]:
+            if len(f) == 2 and all(re.fullmatch(r"\d{2}:\d{2}", x) for x in f) and f[0] < f[1]:
+                ok.append([f[0], f[1]])
+        if ok:
+            dias[k] = ok
+    d["agenda"] = {"dias": dias, "intervalo": cfg.intervalo, "anticipacion": cfg.anticipacion, "dias_adelante": cfg.dias_adelante}
+    _guardar(row["id"], d)
+    return d["agenda"]
+
+
+class Profesional(BaseModel):
+    id: str = Field("", max_length=20)
+    nombre: str = Field(..., min_length=1, max_length=40)
+    servicios: list[int] = Field(default_factory=list)
+
+
+class Profesionales(BaseModel):
+    profesionales: list[Profesional] = Field(default_factory=list, max_length=20)
+
+
+@app.put("/api/panel/{slug}/profesionales")
+def guardar_profesionales(slug: str, body: Profesionales, t: str = ""):
+    row, d, bp = _auth(slug, t)
+    out = []
+    for i, p in enumerate(body.profesionales):
+        pid = p.id if re.fullmatch(r"p\d{1,4}", p.id or "") else f"p{i + 1}"
+        while pid in [x["id"] for x in out]:
+            pid = f"p{int(pid[1:]) + 1}"
+        out.append({"id": pid, "nombre": p.nombre.strip(), "servicios": [s_ for s_ in p.servicios if 0 <= s_ < len(d["items"])]})
+    d["profesionales"] = out
+    _guardar(row["id"], d)
+    return {"profesionales": out}
 
 
 @app.get("/agenda/{slug}.ics")
@@ -610,6 +694,7 @@ def panel(request: Request, slug: str, t: str = ""):
                 c.execute("SELECT * FROM pedidos WHERE negocio_id=? ORDER BY id DESC LIMIT 200", (row["id"],))]
     return tpl.TemplateResponse(request, "panel.html", {"slug": slug, "d": d, "bp": bp, "pedidos": peds,
                                                          "token": t, "pagos_cfg": d.get("pagos") or {"efectivo": True, "mp": True},
+                                                         "agenda_cfg": agenda.config(d), "profesionales": agenda.profesionales(d),
                                                          "mp_activo": mercadopago.activo(),
                                                          "despacho": d.get("despacho") or {}, "webhook": d.get("webhook") or {}})
 
@@ -632,6 +717,13 @@ def _pedido_publico(pid: int) -> dict:
     p["detalle"] = json.loads(p["detalle"])
     p["historial"] = json.loads(p.get("historial") or "[]")
     p["estado_txt"] = ETIQUETAS.get(p["estado"], p["estado"])
+    if p.get("cuando"):
+        p["cuando_txt"] = agenda.legible(p["cuando"])
+    if p.get("profesional"):
+        with db() as c:
+            r = c.execute("SELECT datos FROM negocios WHERE id=?", (p["negocio_id"],)).fetchone()
+        pros = {x["id"]: x["nombre"] for x in (json.loads(r["datos"]).get("profesionales") or [])} if r else {}
+        p["profesional_nombre"] = pros.get(p["profesional"], "")
     return p
 
 
@@ -1029,26 +1121,26 @@ def _guardar_imagen(data: bytes, tipo: str, prefijo: str) -> str:
 
 @app.post("/api/launcher/sesion/{sid}/folleto")
 async def launcher_folleto(sid: str, request: Request):
-    limitar(request, 10, "folleto")
+    """Folleto del local: DeepSeek lee la imagen y SUMA sus productos al catálogo. El folleto no se publica."""
+    limitar(request, 6, "folleto")
     data, tipo = await _leer_foto(request)
     with db() as c:
         row = c.execute("SELECT datos FROM sesiones WHERE id=?", (sid,)).fetchone()
     if not row:
         raise HTTPException(404)
     d = json.loads(row["datos"])
+    cred = ia.credenciales() if ia.cupo_disponible() else None
+    if not cred:
+        raise HTTPException(400, "Leer folletos necesita la IA, que ahora no está disponible. Pasame los productos escritos (ej: Muzza 8000, Napo 9500).")
     _snapshot(sid, d)
-    fol = d.get("folletos") or []
-    if len(fol) >= 5:
-        raise HTTPException(400, "Podés tener hasta 5 folletos.")
-    d["folletos"] = fol + [_guardar_imagen(data, tipo, "s" + re.sub(r"[^a-z0-9]", "", sid)[:12] + "-f")]
-    n = await _productos_de_folleto(data, tipo, d, ia.credenciales() if ia.cupo_disponible() else None)
-    if n:
-        d.setdefault("blueprint", "comercio")
+    n = await _productos_de_folleto(data, tipo, d, cred)
+    if not n:
+        raise HTTPException(400, "No encontré productos con precio en ese folleto 😕 Probá con una foto más nítida o pasámelos escritos.")
+    d.setdefault("blueprint", "comercio")
     with db() as c:
         c.execute("UPDATE sesiones SET datos=? WHERE id=?", (json.dumps(d, ensure_ascii=False), sid))
-    extra = f" Además leí el folleto y sumé **{n} producto{'s' if n != 1 else ''}/promo{'s' if n != 1 else ''}** a tu catálogo 🤖." if n else ""
-    return _estado(sid, d, "deepseek" if n else "simulado",
-                   f"🖼️ ¡Folleto cargado! Lo muestro destacado arriba de tus productos ({len(d['folletos'])}/5).{extra} " + launcher.pregunta(d))
+    return _estado(sid, d, "deepseek", f"📋 ¡Leí tu folleto! Sumé **{n} producto{'s' if n != 1 else ''}** a tu catálogo ({len(d['items'])} en total). "
+                   "Revisalos en la vista previa. " + launcher.pregunta(d))
 
 
 @app.post("/api/panel/{slug}/folleto")
@@ -1060,9 +1152,8 @@ async def panel_folleto(slug: str, request: Request, t: str = ""):
     if len(fol) >= 5:
         raise HTTPException(400, "Podés tener hasta 5 folletos. Borrá uno primero.")
     d["folletos"] = fol + [_guardar_imagen(data, tipo, f"n{row['id']}-f")]
-    n = await _productos_de_folleto(data, tipo, d, ia.credenciales(_secreto(row["id"])))
     _guardar(row["id"], d)
-    return {"folletos": d["folletos"], "importados": n, "items": d["items"]}
+    return {"folletos": d["folletos"]}
 
 
 @app.delete("/api/panel/{slug}/folleto/{n}")

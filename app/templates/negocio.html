@@ -66,6 +66,17 @@ h2{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cy
 .folletos .fol:only-child{width:100%}
 .fol-full{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.92);display:grid;place-items:center;padding:16px;cursor:zoom-out}
 .fol-full img{max-width:100%;max-height:100%;object-fit:contain;border-radius:12px}
+.agenda{display:grid;gap:8px}
+.ag-lbl{font-size:.8rem;color:var(--muted);font-weight:700;margin-top:4px}
+.ag-row{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.ag-chip{flex:none;border:1px solid var(--line);background:#0d0b1a;color:var(--text);border-radius:999px;padding:8px 14px;font:inherit;cursor:pointer;min-height:40px}
+.ag-dia{flex:none;width:62px;display:grid;justify-items:center;gap:0;padding:8px 4px;border:1px solid var(--line);background:#0d0b1a;color:var(--text);border-radius:14px;font:inherit;cursor:pointer}
+.ag-dia b{font-size:1.2rem}.ag-dia small{font-size:.7rem;color:var(--muted)}
+.ag-dia:disabled{opacity:.35;cursor:not-allowed}
+.ag-horas{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:8px}
+.ag-hora{border:1px solid var(--line);background:#0d0b1a;color:var(--text);border-radius:12px;padding:10px 0;font:inherit;font-weight:700;cursor:pointer;min-height:44px}
+.ag-chip.on,.ag-dia.on,.ag-hora.on{background:var(--grad);color:#0b0716;border-color:transparent}
+.ag-dia.on small{color:#0b0716}
 .nores{padding:30px 10px;text-align:center;color:var(--muted)}
 .pic{border:0;padding:0;background:none;cursor:pointer;position:relative;flex:none;border-radius:16px;overflow:hidden}
 .txt[data-ficha]{cursor:pointer}
@@ -220,7 +231,8 @@ h2{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cy
       <input name="cliente" required maxlength="60" placeholder="Tu nombre" autocomplete="name">
       <input name="contacto" maxlength="40" placeholder="Teléfono / WhatsApp" inputmode="tel" autocomplete="tel">
       {% if bp.modo == 'turnos' %}
-      <div class="grid2"><input type="date" name="dia" required><input type="time" name="hora" required step="900"></div>
+      <div id="agendaBox" class="agenda"></div>
+      <input type="hidden" name="cuando"><input type="hidden" name="prof">
       {% endif %}
       <textarea name="nota" maxlength="300" rows="2" placeholder="{{ 'Algo que debamos saber (opcional)' if bp.modo == 'turnos' else 'Dirección de entrega (o “retiro”) y aclaraciones' }}"></textarea>
       <div class="pagos">
@@ -268,9 +280,9 @@ function upd(){
   let t=0,c=0;
   document.querySelectorAll('#app .qty').forEach(q=>{const n=sel[q.dataset.i]||0;q.querySelector('span').textContent=n;q.classList.toggle('has',n>0)});
   for(const k in sel){t+=sel[k]*ITEMS[k].precio;c+=sel[k]}
-  $('#tot').textContent=fmt(t);$('#tot2').textContent=fmt(t);$('#cnt').textContent=c;$('#go').disabled=!c;
+  $('#tot').textContent=fmt(t);$('#tot2').textContent=fmt(t);$('#cnt').textContent=c;$('#go').disabled=!c||(turnos&&!($('#f').cuando&&$('#f').cuando.value));
   $('#bar').hidden=!c;document.querySelector('.fab').style.bottom=c?'':'calc(20px + env(safe-area-inset-bottom,0px))';
-  if(abiertoBS===carrito)lineas();
+  if(abiertoBS===carrito){lineas();if(turnos){$('#f').cuando.value='';cargarAgenda(FECHA)}}
 }
 function abrirBS(el){ov.hidden=false;el.hidden=false;abiertoBS=el;document.body.style.overflow='hidden'}
 function cerrarBS(){if(!abiertoBS)return;abiertoBS.hidden=true;ov.hidden=true;abiertoBS=null;document.body.style.overflow=''}
@@ -312,24 +324,43 @@ if($('#cats')){const links=[...document.querySelectorAll('#cats a')];
   document.querySelectorAll('.catsec').forEach(s=>io.observe(s))}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')cerrarBS()});
 document.querySelectorAll('[data-fol]').forEach(b=>b.onclick=()=>{const v=document.createElement('div');v.className='fol-full';v.innerHTML=`<img src="${esc(b.dataset.fol)}" alt="">`;v.onclick=()=>v.remove();document.body.appendChild(v)});
-if(turnos){const d=document.querySelector('[name=dia]');if(d){d.min=new Date().toISOString().slice(0,10);
-  const occ=document.createElement('div');occ.className='muted';occ.style.fontSize='.85rem';d.parentNode.after(occ);
-  d.onchange=async()=>{occ.textContent='';if(!d.value)return;try{const r=await fetch(`/api/n/${SLUG}/ocupados?dia=${d.value}`);const l=await r.json();
-    occ.textContent=l.length?'⛔ Ocupado: '+l.map(x=>x.desde+'–'+x.hasta).join(', '):'✅ Día libre, elegí tu horario'}catch(e){}}}}
+/* ---- agenda de turnos: profesional → día → horario libre ---- */
+const DIAS_C=['dom','lun','mar','mié','jue','vie','sáb'];
+let PROF='', FECHA='';
+async function cargarAgenda(fecha){
+  const box=$('#agendaBox');if(!turnos||!box)return;
+  const k=Object.keys(sel)[0];
+  if(!k){box.innerHTML='<p class="muted">Elegí primero un servicio 🙂</p>';return}
+  box.innerHTML='<p class="muted">Buscando horarios libres…</p>';
+  try{
+    const r=await fetch(`/api/n/${SLUG}/disponibilidad?servicio=${k}&fecha=${fecha||''}&prof=${encodeURIComponent(PROF)}`);const j=await r.json();
+    FECHA=j.fecha;const f=$('#f');
+    const pros=j.profesionales.length>1?`<div class="ag-lbl">¿Con quién?</div><div class="ag-row">${[{id:'',nombre:'Cualquiera'}].concat(j.profesionales).map(p=>`<button type="button" class="ag-chip${p.id===PROF?' on':''}" data-prof="${esc(p.id)}">${esc(p.nombre)}</button>`).join('')}</div>`:'';
+    const dias=`<div class="ag-lbl">Día</div><div class="ag-row ag-dias">${j.dias.map(x=>{const dt=new Date(x.fecha+'T12:00');return `<button type="button" class="ag-dia${x.fecha===FECHA?' on':''}" data-fecha="${x.fecha}" ${x.libres?'':'disabled'}><small>${DIAS_C[dt.getDay()]}</small><b>${dt.getDate()}</b><small>${x.libres?x.libres+' lib.':'—'}</small></button>`}).join('')}</div>`;
+    const horas=j.libres.length?`<div class="ag-lbl">Horario</div><div class="ag-horas">${j.libres.map(x=>`<button type="button" class="ag-hora${f.cuando.value===FECHA+' '+x.hora?' on':''}" data-hora="${x.hora}">${x.hora}</button>`).join('')}</div>`:'<p class="muted">No quedan horarios este día. Probá otro 👆</p>';
+    box.innerHTML=pros+dias+horas;
+    box.querySelectorAll('[data-prof]').forEach(b=>b.onclick=()=>{PROF=b.dataset.prof;f.prof.value=PROF;f.cuando.value='';cargarAgenda(FECHA)});
+    box.querySelectorAll('[data-fecha]').forEach(b=>b.onclick=()=>{f.cuando.value='';cargarAgenda(b.dataset.fecha)});
+    box.querySelectorAll('[data-hora]').forEach(b=>b.onclick=()=>{f.cuando.value=FECHA+' '+b.dataset.hora;box.querySelectorAll('.ag-hora').forEach(x=>x.classList.toggle('on',x===b));$('#go').disabled=false});
+    const on=box.querySelector('.ag-dia.on');on&&on.scrollIntoView({inline:'center',block:'nearest'});
+  }catch(e){box.innerHTML='<p class="muted">No pude cargar los horarios. Probá de nuevo.</p>'}
+}
+if(turnos){const vp=$('#verPedido').onclick;$('#verPedido').onclick=()=>{vp();cargarAgenda(FECHA)}}
 function payHTML(j){return j.pago==='mercadopago'?`<div class="payinfo">🔵 Mercado Pago<br>${j.pago_info?'<b>'+linkOr(j.pago_info)+'</b>':'El local te envía el link de pago por WhatsApp.'}</div>`:j.pago==='transferencia'?`<div class="payinfo">🏦 Transferí a:<br><b>${esc(j.pago_info)}</b><br><span class="muted">y mandá el comprobante al negocio</span></div>`:`<p class="muted">💵 Pagás en efectivo ${turnos?'en el local':'al recibir'}.</p>`}
 $('#go').onclick=async()=>{
   const f=$('#f'); if(!f.reportValidity())return;
+  if(turnos&&!f.cuando.value){$('#err').textContent='Elegí un horario 🙂';$('#agendaBox').scrollIntoView({block:'center'});return}
   const items={};for(const k in sel)if(sel[k]>0)items[k]=sel[k];
-  const body={cliente:f.cliente.value,contacto:f.contacto.value,nota:f.nota.value,items,cuando:turnos?`${f.dia.value} ${f.hora.value}`:'',pago:(f.querySelector('[name=pago]:checked')||{}).value||'efectivo'};
+  const body={cliente:f.cliente.value,contacto:f.contacto.value,nota:f.nota.value,items,cuando:turnos?f.cuando.value:'',profesional:turnos?f.prof.value:'',pago:(f.querySelector('[name=pago]:checked')||{}).value||'efectivo'};
   $('#go').disabled=true;$('#err').textContent='';
   try{
     const r=await fetch(`/api/n/${SLUG}/pedido`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const j=await r.json();
     if(r.ok&&j.pago_url){location.href=j.pago_url;return}
-    if(!r.ok){$('#err').textContent=typeof j.detail==='string'?j.detail:'Revisá los datos';$('#go').disabled=false;return}
+    if(!r.ok){$('#err').textContent=typeof j.detail==='string'?j.detail:'Revisá los datos';$('#go').disabled=false;if(turnos&&r.status===409){f.cuando.value='';cargarAgenda(FECHA)}return}
     cerrarBS();window.scrollTo(0,0);
     $('#app').innerHTML=`<div class="ok card"><div class="big">✅</div><h1>${turnos?'¡Turno reservado!':'¡Pedido confirmado!'}</h1>
-      <p class="muted">${turnos?'Reserva':'Pedido'} #${j.numero}${turnos?' para el '+body.cuando.replace(' ',' a las '):''}</p>
+      <p class="muted">${turnos?'Reserva':'Pedido'} #${j.numero}${turnos?' · '+new Date(body.cuando.replace(' ','T')).toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'numeric'})+' a las '+body.cuando.slice(11):''}</p>
       <div style="text-align:left;max-width:360px;margin:16px auto">${j.detalle.map(x=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--line)"><span>${x.cantidad}× ${esc(x.nombre)}</span><span class="price">${fmt(x.precio*x.cantidad)}</span></div>`).join('')}
       <div style="display:flex;justify-content:space-between;padding-top:8px;font-weight:800"><span>Total</span><span>${fmt(j.total)}</span></div></div>
       ${payHTML(j)}<a class="btn btn-neon" href="${esc(j.seguimiento)}" style="width:100%;margin:10px 0">📍 Seguir mi pedido en vivo</a><p class="muted">El negocio ya lo tiene en su panel. ¡Gracias!</p><a class="btn btn-ghost" href="">Hacer otro</a></div>`;

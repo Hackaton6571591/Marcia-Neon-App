@@ -137,14 +137,14 @@ code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(-
       </div>
     </div>
     <div class="box card">
-      <h3>🖼️ Folletos y promociones</h3>
-      <p class="muted" style="margin-top:0">Se muestran destacados arriba de tus productos (hasta 5) y la IA lee el folleto para sumar sus productos y promos a tu catálogo.</p>
+      <h3>🖼️ Banners de promoción <span class="tag">Opcional</span></h3>
+      <p class="muted" style="margin-top:0">Imágenes que querés mostrar destacadas arriba de tus productos (hasta 5). Para cargar productos desde un folleto usá "Subir foto de tu menú o folleto".</p>
       <div class="fols" id="fols">{% for f in d.folletos or [] %}<div class="folp"><img src="{{ f }}" alt=""><button type="button" data-delfol="{{ loop.index0 }}" title="Borrar">✕</button></div>{% endfor %}</div>
-      <div class="acts"><label class="btn btn-neon" style="cursor:pointer">🖼️ Subir folleto<input type="file" id="folIn" accept="image/png,image/jpeg,image/webp" hidden></label><span class="msg" id="folMsg"></span></div>
+      <div class="acts"><label class="btn btn-ghost" style="cursor:pointer">🖼️ Subir banner<input type="file" id="folIn" accept="image/png,image/jpeg,image/webp" hidden></label><span class="msg" id="folMsg"></span></div>
     </div>
     <div class="box card">
-      <h3>📷 Subir foto de tu menú <span class="tag"><i></i>IA</span></h3>
-      <p class="muted" style="margin-top:0">Sacale una foto a tu carta, pizarra o lista de precios y la IA carga los productos sola.</p>
+      <h3>📷 Subir foto de tu menú o folleto <span class="tag"><i></i>IA</span></h3>
+      <p class="muted" style="margin-top:0">Sacale una foto a tu carta, folleto, pizarra o lista de precios y la IA carga los productos sola.</p>
       <div class="acts">
         <label class="btn btn-neon" style="cursor:pointer">📷 Elegir foto<input type="file" id="fmFile" accept="image/png,image/jpeg,image/webp" capture="environment" hidden></label>
         <label class="chk muted"><input type="checkbox" id="fmReemp"> Reemplazar los actuales</label>
@@ -288,7 +288,7 @@ $('#bGo').onclick=async()=>{const u=$('#bUrl').value.trim();if(!u){msg($('#bMsg'
     if(j.logo)$('#logoPrev').src=j.logo;msg($('#bMsg'),'✓ Listo, ya se ve en tu tienda',1)}catch(e){msg($('#bMsg'),e.message)}finally{$('#bGo').disabled=false}};
 function pintarFols(l){$('#fols').innerHTML=l.map((f,i)=>`<div class="folp"><img src="${f}" alt=""><button type="button" data-delfol="${i}" title="Borrar">✕</button></div>`).join('')}
 $('#fols').onclick=async e=>{const b=e.target.closest('[data-delfol]');if(!b)return;try{const j=await api('folleto/'+b.dataset.delfol,{method:'DELETE'});pintarFols(j.folletos);msg($('#folMsg'),'✓ Borrado',1)}catch(er){msg($('#folMsg'),er.message)}};
-$('#folIn').onchange=async ev=>{const f=ev.target.files[0];if(!f)return;try{const j=await api('folleto',{method:'POST',headers:{'Content-Type':f.type},body:f});pintarFols(j.folletos);if(j.items){items=j.items;renderItems()}msg($('#folMsg'),'✓ Folleto publicado'+(j.importados?` · ${j.importados} productos/promos sumados al catálogo`:''),1)}catch(er){msg($('#folMsg'),er.message)}finally{ev.target.value=''}};
+$('#folIn').onchange=async ev=>{const f=ev.target.files[0];if(!f)return;try{const j=await api('folleto',{method:'POST',headers:{'Content-Type':f.type},body:f});pintarFols(j.folletos);msg($('#folMsg'),'✓ Banner publicado en tu tienda',1)}catch(er){msg($('#folMsg'),er.message)}finally{ev.target.value=''}};
 $('#bCrear').onclick=async()=>{$('#bCrear').disabled=true;msg($('#bMsg'),'Diseñando opciones…',1);
   try{const j=await api('logos',{method:'POST'});
     $('#logoOps').innerHTML=j.opciones.map((svg,i)=>`<button type="button" data-i="${i}" title="Usar este"><img alt="" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}"></button>`).join('');

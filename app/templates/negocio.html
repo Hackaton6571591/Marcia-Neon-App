@@ -2,6 +2,7 @@
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>{{ d.nombre }} · {{ 'Turnos online' if bp.modo == 'turnos' else 'Pedidos online' }}</title>
 <link rel="stylesheet" href="/static/marcia.css">
+<link rel="manifest" href="/n/{{ slug }}/manifest.webmanifest"><meta name="theme-color" content="#07060f"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><link rel="apple-touch-icon" href="/static/icon.svg">
 <style>
 .wrap{max-width:720px;margin:0 auto;padding:20px 16px 120px}
 .hero{padding:28px 24px;border-radius:24px;border:1px solid var(--line);background:radial-gradient(circle at 0 0,rgba(255,61,203,.3),transparent 60%),radial-gradient(circle at 100% 100%,rgba(0,229,255,.22),transparent 60%),#0b0a16}
@@ -11,7 +12,7 @@ h2{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cy
 .item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;margin-bottom:10px}
 .item .n{font-weight:700}.item small{color:var(--muted)}
 .qty{display:flex;align-items:center;gap:8px}
-.qty button{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:#141127;color:var(--text);font-size:1.1rem;cursor:pointer}
+.qty button{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:#141127;color:var(--text);font-size:1.1rem;cursor:pointer}
 .qty button.add{background:var(--grad);color:#0b0716;border:0;font-weight:900}
 .qty span{min-width:18px;text-align:center;font-weight:800}
 .form{padding:18px;display:grid;gap:10px}
@@ -22,6 +23,10 @@ h2{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cy
 .err{color:#ff8fab;font-size:.9rem;min-height:1.2em}
 .foot{text-align:center;color:var(--muted);font-size:.8rem;margin-top:30px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.item>div:first-child{min-width:0}.item .n{overflow-wrap:anywhere}
+.bar .btn{flex:none}
+@media(max-width:420px){.hero{padding:22px 18px;border-radius:20px}.item{padding:12px 14px}.qty{gap:6px}.bar .btn{padding:11px 16px}.op{flex:1 1 calc(50% - 8px);justify-content:center}}
 .pagos{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.pagos>div{width:100%}
 .op{display:flex;align-items:center;gap:8px;padding:9px 14px;border:1px solid var(--line);border-radius:999px;background:#0d0b1a;cursor:pointer}
 .op:has(input:checked){border-color:var(--cyan);box-shadow:0 0 16px -6px var(--cyan)}

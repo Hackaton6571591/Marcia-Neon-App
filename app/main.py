@@ -196,6 +196,18 @@ def ver_negocio(request: Request, slug: str):
     return tpl.TemplateResponse(request, "negocio.html", {"slug": slug, "d": d, "bp": bp, "pagos": _pagos(d)})
 
 
+@app.get("/n/{slug}/manifest.webmanifest")
+def manifest_negocio(slug: str):
+    """Cada tienda se instala como app propia del negocio (Agregar a inicio)."""
+    from fastapi.responses import JSONResponse
+    row, d, bp = _negocio(slug)
+    return JSONResponse({"name": d["nombre"], "short_name": d["nombre"][:12], "start_url": f"/n/{slug}",
+                         "scope": f"/n/{slug}", "display": "standalone", "background_color": "#07060f",
+                         "theme_color": "#07060f", "lang": "es",
+                         "icons": [{"src": "/static/icon.svg", "sizes": "any", "type": "image/svg+xml"}]},
+                        media_type="application/manifest+json")
+
+
 class Pedido(BaseModel):
     cliente: str = Field(..., min_length=1, max_length=60)
     contacto: str = Field("", max_length=40)

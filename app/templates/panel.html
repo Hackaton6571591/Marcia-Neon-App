@@ -2,6 +2,7 @@
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Panel · {{ d.nombre }}</title><meta name="robots" content="noindex">
 <link rel="stylesheet" href="/static/marcia.css">
+<link rel="manifest" href="/static/manifest.webmanifest"><meta name="theme-color" content="#07060f"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><link rel="apple-touch-icon" href="/static/icon.svg">
 <style>
 .wrap{max-width:1000px;margin:0 auto;padding:20px 16px 60px}
 h1{margin:6px 0 4px;letter-spacing:-.02em}
@@ -17,7 +18,7 @@ h1{margin:6px 0 4px;letter-spacing:-.02em}
 .box{padding:18px;margin-bottom:16px}
 .box h3{margin:0 0 4px}
 .irow{display:grid;grid-template-columns:1fr 130px {% if bp.modo == 'turnos' %}100px {% endif %}40px;gap:8px;margin-bottom:8px}
-.irow button{border:1px solid var(--line);background:#1a1530;color:#ff8fab;border-radius:10px;cursor:pointer}
+.irow button{min-height:44px;border:1px solid var(--line);background:#1a1530;color:#ff8fab;border-radius:10px;cursor:pointer}
 .acts{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:center}
 .msg{font-size:.9rem;min-height:1.2em}
 .msg.ok{color:var(--lime)}.msg.err{color:#ff8fab}
@@ -28,7 +29,14 @@ h1{margin:6px 0 4px;letter-spacing:-.02em}
 code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(--line)}
 .soon{opacity:.6}
 [hidden]{display:none!important}
-@media(max-width:600px){.kpis{grid-template-columns:1fr 1fr}.ped{grid-template-columns:1fr}.irow{grid-template-columns:1fr 100px 40px}.irow .dur{display:none}}
+@media(max-width:600px){
+  .kpis{grid-template-columns:1fr 1fr;gap:8px}.kpis .kpi:last-child{grid-column:1/-1}.kpi b{font-size:1.3rem}
+  .ped{grid-template-columns:auto 1fr;gap:10px}.ped>.price{grid-column:2}
+  .irow{grid-template-columns:1fr {% if bp.modo == 'turnos' %}80px {% endif %}44px;padding-bottom:8px;border-bottom:1px dashed var(--line)}
+  .irow input:first-child{grid-column:1/-1}
+  .tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-inline:-16px;padding-inline:16px}.tabs button{flex:none}
+  .box{padding:16px}.acts .btn{flex:1}
+}
 </style></head><body>
 <div class="top"><a class="logo" href="/">Marcia <span class="grad">Neon</span></a><a class="btn btn-ghost" href="/n/{{ slug }}" target="_blank">Ver mi tienda ↗</a></div>
 <div class="wrap">

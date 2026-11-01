@@ -2,6 +2,7 @@
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Marcia Neon · Creá tu solución</title><meta name="robots" content="noindex">
 <link rel="stylesheet" href="/static/marcia.css">
+<link rel="manifest" href="/static/manifest.webmanifest"><meta name="theme-color" content="#07060f"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><link rel="apple-touch-icon" href="/static/icon.svg">
 <style>
 body{height:100dvh;display:flex;flex-direction:column;overflow:hidden}
 .app{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;padding:20px;max-width:1300px;width:100%;margin:0 auto}
@@ -44,7 +45,12 @@ body{height:100dvh;display:flex;flex-direction:column;overflow:hidden}
 .done a.btn{width:100%}
 .tabs{display:none}
 @media(max-width:860px){
-  .app{grid-template-columns:1fr;padding:12px;gap:0}
+  .app{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr);padding:10px 10px calc(10px + env(safe-area-inset-bottom,0px));gap:0}
+  .tabs button.new::after{content:'';width:8px;height:8px;border-radius:50%;background:var(--lime);box-shadow:0 0 10px var(--lime);margin-left:4px}
+  .m{max-width:90%}
+  .steps{font-size:.66rem;padding:8px 12px 12px}
+  .sug{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}.sug button{flex:none;min-height:36px}
+  .pub .btn{width:100%}
   .tabs{display:flex;gap:8px;padding:10px 12px 0}
   .tabs button{flex:1}
   .tabs button.on{background:var(--grad);color:#0b0716}
@@ -103,6 +109,7 @@ function render(e){
     <div class="sec">Información</div>
     <div class="info"><span>🕒 ${d.horarios?esc(d.horarios):'<span class="empty">Horarios</span>'}</span>${d.telefono?`<span>📞 ${esc(d.telefono)}</span>`:''}
     ${d.dolor?`<span>🎯 Resuelve: ${esc(d.dolor)}</span>`:''}</div>`;
+  const pt=document.querySelector('.tabs [data-t=prev]');if(pt&&$('.app').dataset.tab==='chat'&&matchMedia('(max-width:860px)').matches&&e.datos&&Object.keys(e.datos).length)pt.classList.add('new');
   $('#mock').classList.remove('flash');void $('#mock').offsetWidth;$('#mock').classList.add('flash');
   const listo=e.etapa==='revision'; $('#pubBtn').disabled=!listo;
   $('#pubTxt').textContent=listo?'¡Todo listo para publicar!':'Completá la charla para publicar.';
@@ -133,13 +140,14 @@ async function publicar(){
   const url=location.origin+j.url;
   add('a',md(`🎉 **¡Tu solución está online!**\nCompartí este link con tus clientes y Marcia empieza a atender:\n${url}\n\nTus pedidos van a llegar a tu panel (guardá ese link, es privado).`));
   $('#pub').innerHTML=`<div class="done" style="width:100%"><a class="btn btn-neon" href="${esc(j.url)}" target="_blank">Ver mi página →</a><a class="btn btn-ghost" href="${esc(j.url_panel)}" target="_blank">📊 Abrir mi panel</a><button class="btn btn-ghost" id="nueva">✨ Crear otra solución</button></div>`;
+  if(matchMedia('(max-width:860px)').matches)document.querySelector('.tabs [data-t=prev]').click();
   $('#nueva').onclick=()=>{try{localStorage.removeItem('marcia_sesion')}catch(e){};location.href='/crear'};
   try{localStorage.removeItem('marcia_sesion')}catch(e){}
 }
 f.addEventListener('submit',e=>{e.preventDefault();enviar()});
 t.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();enviar()}});
 $('#pubBtn').onclick=publicar;
-document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));$('.app').dataset.tab=b.dataset.t});
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{b.classList.remove('new');document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));$('.app').dataset.tab=b.dataset.t});
 async function init(){
   const inicial={{ inicial|tojson }};
   if(S&&!inicial){

@@ -25,6 +25,7 @@ Python 3.12 · FastAPI · SQLite (WAL) · HTML/CSS/JS nativo · Caddy · systemd
 - [docs/servidor.md](docs/servidor.md): server, usuario y entorno.
 - [docs/bitacora.md](docs/bitacora.md): registro cronológico de todo lo que se hace.
 - [docs/vision-producto.md](docs/vision-producto.md): visión del producto (ecommerce + CRM + chatbot + WhatsApp) y estado por funcionalidad.
+- [docs/vendedor-virtual.md](docs/vendedor-virtual.md): chatbot vendedor de cada tienda (proceso de venta, IA, seguridad).
 - [docs/launcher.md](docs/launcher.md): implementación del launcher, IA, API y pruebas.
 - [docs/mobile.md](docs/mobile.md): mobile nativo y PWA (cada tienda se instala como app).
 - [docs/deploy.md](docs/deploy.md): Caddy, servicio, URLs y cómo vincular el dominio.
@@ -38,6 +39,8 @@ Python 3.12 · FastAPI · SQLite (WAL) · HTML/CSS/JS nativo · Caddy · systemd
 - ✅ Launcher (`/crear`): chat con Marcia + vista previa en vivo + publicar.
 - ✅ Página pública del negocio (`/n/{slug}`): pedidos o turnos.
 - ✅ Panel privado del negocio (`/panel/{slug}?t=…`): pedidos, productos (manual + CSV), medios de pago.
+- ✅ **Vendedor virtual** en cada tienda: responde dudas y arma el pedido conversando, integrado al catálogo.
+- ✅ Copiar menú desde una URL; logo e imagen desde la web o Instagram; categorías e ilustraciones.
 - ✅ Mercado Pago Checkout Pro listo para activar con el access token (modo manual en la hackatón).
 - ⏳ IA real: DeepSeek integrado, falta cargar la API key (mientras tanto, modo demo).
 
@@ -47,6 +50,9 @@ Python 3.12 · FastAPI · SQLite (WAL) · HTML/CSS/JS nativo · Caddy · systemd
 1. Entrar a la vista previa → "Restaurante".
 2. Responder a Marcia (o usar las sugerencias) → **Publicar**.
 3. Abrir "Ver mi página", hacer un pedido → aparece en "Mi panel".
+4. En la tienda, tocar **💬 Pedí por chat** y pedir: *"hola, tenés empanadas de carne?"*, *"3"*, *"y una coca"*, *"eso es todo"*…
+
+Tienda de ejemplo completa: https://66-97-32-220.sslip.io/n/don-luigi-2
 
 ## Correr local
 ```bash

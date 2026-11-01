@@ -76,6 +76,12 @@ El cliente elige el medio de pago en la tienda; el servidor valida que esté hab
 - `GET /agenda/{slug}.ics?t={token}` → feed **iCalendar** privado con todos los turnos (zona horaria Buenos Aires). Se agrega en Google Calendar ("Desde URL"), Apple Calendar o Outlook. Link visible en Panel → Integraciones.
 - Probado: color 15:00 (90 min) OK; corte 16:00 → 409; corte 16:30 → OK; fecha pasada → 400; feed .ics válido; token inválido → 403.
 
+## Marca e importación (agregado)
+- En la etapa *negocio*, Marcia pide el link de la **web o Instagram**. Si el usuario pega una URL en cualquier mensaje, se extraen `og:image` (en redes = foto de perfil → logo; en webs = portada) y el ícono de la página (→ logo). Se guardan en `data/media/` (fuera del repo) y se sirven en `/media/{archivo}` (nombre validado por regex; SVG con CSP `sandbox`).
+- Panel → Productos: **Tu marca** (tomar de la web o subir logo), **Copiar menú desde URL**, CSV con columna `categoria`.
+- Protección **SSRF** en toda descarga: solo http/https en puertos 80/443, el host debe resolver a IPs públicas, redirecciones verificadas una por una, máx. 2 MB (página) / 3 MB (imagen), 10 s. Probado: `127.0.0.1`, `localhost`, `169.254.169.254`, `10.0.0.1`, `file://` y `IP:8000` → rechazados.
+- Instagram suele bloquear la lectura sin login: en ese caso Marcia lo avisa y sugiere subir el logo.
+
 ## Pendiente / siguiente
 - Probar con la API key real de DeepSeek.
 - Streaming SSE de la respuesta (hoy la respuesta llega completa).

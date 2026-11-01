@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
-from . import launcher, mercadopago
+from . import importar, launcher, mercadopago, vendedor
 from .blueprints import ALIAS_CHIPS, BLUEPRINTS
 
 BASE = Path(__file__).parent
@@ -61,6 +61,7 @@ def init_db():
             estado TEXT DEFAULT 'nuevo', creado INT);
         CREATE INDEX IF NOT EXISTS ix_pedidos_negocio ON pedidos(negocio_id, creado);
         """)
+        c.execute("CREATE TABLE IF NOT EXISTS chats(id TEXT PRIMARY KEY, negocio_id INT, estado TEXT, historia TEXT, mensajes INT DEFAULT 0, creado INT)")
         cols = [r[1] for r in c.execute("PRAGMA table_info(pedidos)")]
         if "pago" not in cols:
             c.execute("ALTER TABLE pedidos ADD COLUMN pago TEXT")
@@ -134,7 +135,7 @@ async def mensaje(m: Mensaje, request: Request):
         sid, d, hist, n = _cargar_sesion(c, m.sesion)
     if n >= 40:
         raise HTTPException(429, "Llegaste al límite de mensajes de esta sesión.")
-    d, respuesta, proveedor = await launcher.procesar(d, m.texto.strip(), hist)
+    d, respuesta, proveedor = await launcher.procesar(d, m.texto.strip(), hist, sid)
     hist = (hist + [{"role": "user", "content": m.texto[:1000]}, {"role": "assistant", "content": respuesta}])[-12:]
     with db() as c:
         c.execute("UPDATE sesiones SET datos=?, historia=?, mensajes=mensajes+1 WHERE id=?",
@@ -190,10 +191,33 @@ def _negocio(slug):
     return row, d, BLUEPRINTS[d["blueprint"]]
 
 
+ILUS = [  # (palabras clave, emoji): ilustración automática cuando no hay foto
+    (("porcion", "porción"), "🍕"), (("pizza", "muzza", "napolit", "fugaz", "calabres", "especial", "jamon", "provolone", "cuatro queso", "rucula"), "🍕"),
+    (("empanada",), "🥟"), (("faina", "fainá"), "🫓"), (("coca", "sprite", "fanta", "gaseosa", "pepsi", "seven", "7up", "agua", "jugo", "bebida"), "🥤"),
+    (("cerveza", "birra", "quilmes", "stella"), "🍺"), (("vino",), "🍷"), (("flan", "postre", "tiramisu"), "🍮"), (("helado",), "🍨"),
+    (("hamburg", "burger"), "🍔"), (("papas", "fritas"), "🍟"), (("milanesa",), "🥩"), (("sushi", "roll"), "🍣"), (("cafe", "café"), "☕"),
+    (("combo", "promo"), "🎁"), (("corte",), "✂️"), (("color", "tintura", "mechas"), "🎨"), (("barba",), "🧔"), (("manicur", "uñas", "unas"), "💅"),
+    (("consulta", "control", "turno"), "🩺"), (("masaje",), "💆"), (("martillo",), "🔨"), (("tornillo", "clavo", "bulon"), "🔩"),
+    (("cinta",), "🧻"), (("pintura",), "🖌️"), (("llave", "pinza", "herramienta"), "🔧"),
+]
+
+
+def ilus(it: dict, defecto: str = "✨") -> dict:
+    texto = (it.get("categoria", "") + " " + it["nombre"]).lower()
+    emoji = next((e for kws, e in ILUS if any(k in texto for k in kws)), defecto)
+    return {"emoji": emoji, "hue": sum(map(ord, it["nombre"])) % 360}
+
+
 @app.get("/n/{slug}", response_class=HTMLResponse)
 def ver_negocio(request: Request, slug: str):
     row, d, bp = _negocio(slug)
-    return tpl.TemplateResponse(request, "negocio.html", {"slug": slug, "d": d, "bp": bp, "pagos": _pagos(d)})
+    grupos: dict[str, list] = {}
+    for i, it in enumerate(d["items"]):
+        cat = it.get("categoria") or ("Servicios" if bp["modo"] == "turnos" else "Productos")
+        grupos.setdefault(cat, []).append((i, it, ilus(it, bp["emoji"])))
+    nombres = [it["nombre"] for it in d["items"]]
+    return tpl.TemplateResponse(request, "negocio.html", {"slug": slug, "d": d, "bp": bp, "pagos": _pagos(d),
+                                                           "grupos": grupos, "ej": nombres[0] if nombres else ""})
 
 
 @app.get("/n/{slug}/manifest.webmanifest")
@@ -204,7 +228,7 @@ def manifest_negocio(slug: str):
     return JSONResponse({"name": d["nombre"], "short_name": d["nombre"][:12], "start_url": f"/n/{slug}",
                          "scope": f"/n/{slug}", "display": "standalone", "background_color": "#07060f",
                          "theme_color": "#07060f", "lang": "es",
-                         "icons": [{"src": "/static/icon.svg", "sizes": "any", "type": "image/svg+xml"}]},
+                         "icons": [{"src": d.get("logo") or "/static/icon.svg", "sizes": "any"}]},
                         media_type="application/manifest+json")
 
 
@@ -221,33 +245,110 @@ class Pedido(BaseModel):
 async def crear_pedido(slug: str, p: Pedido, request: Request):
     limitar(request, 10, "pedido")
     row, d, bp = _negocio(slug)
+    return await _registrar_pedido(request, slug, row, d, bp, p.items, p.cliente, p.contacto, p.cuando, p.nota, p.pago)
+
+
+async def _registrar_pedido(request, slug, row, d, bp, items: dict, cliente, contacto, cuando, nota, pago) -> dict:
+    """Única vía para crear pedidos/turnos (formulario y vendedor virtual). Total calculado acá."""
     detalle, total = [], 0
-    for idx, cant in p.items.items():
+    for idx, cant in items.items():
+        idx, cant = int(idx), int(cant)
         if 0 <= idx < len(d["items"]) and 0 < cant <= 50:
             it = d["items"][idx]
             detalle.append({"nombre": it["nombre"], "cantidad": cant, "precio": it["precio"]})
             total += it["precio"] * cant
     if not detalle:
         raise HTTPException(400, "Elegí al menos un producto o servicio.")
-    if bp["modo"] == "turnos" and not p.cuando:
+    if bp["modo"] == "turnos" and not cuando:
         raise HTTPException(400, "Elegí día y horario para el turno.")
     if bp["modo"] == "turnos":
-        _validar_turno(row["id"], d, detalle, p.cuando)
+        _validar_turno(row["id"], d, detalle, cuando)
     pagos = _pagos(d)
-    if p.pago not in pagos:
+    if pago not in pagos:
         raise HTTPException(400, "Medio de pago no disponible.")
     with db() as c:
         cur = c.execute("INSERT INTO pedidos(negocio_id,tipo,cliente,contacto,detalle,total,cuando,nota,pago,creado) "
                         "VALUES(?,?,?,?,?,?,?,?,?,?)",
-                        (row["id"], bp["modo"], p.cliente, p.contacto, json.dumps(detalle, ensure_ascii=False),
-                         total, p.cuando, p.nota, p.pago, int(time.time())))
+                        (row["id"], bp["modo"], cliente[:60], (contacto or "")[:40], json.dumps(detalle, ensure_ascii=False),
+                         total, cuando or "", (nota or "")[:300], pago, int(time.time())))
     numero = cur.lastrowid
     pago_url = None
-    if p.pago == "mercadopago" and mercadopago.activo():
+    if pago == "mercadopago" and mercadopago.activo():
         base = os.getenv("BASE_URL", "").rstrip("/") or str(request.base_url).rstrip("/").replace("http://", "https://")
         pago_url = await mercadopago.crear_preferencia(numero, d["nombre"], detalle, base, slug)
-    return {"numero": numero, "total": total, "detalle": detalle, "pago": p.pago,
-            "pago_info": pagos[p.pago], "pago_url": pago_url}
+    return {"numero": numero, "total": total, "detalle": detalle, "pago": pago,
+            "pago_info": pagos[pago], "pago_url": pago_url}
+
+
+class ChatMsg(BaseModel):
+    chat: str | None = Field(None, max_length=40)
+    texto: str = Field(..., min_length=1, max_length=500)
+
+
+@app.post("/api/n/{slug}/chat")
+async def chat_vendedor(slug: str, m: ChatMsg, request: Request):
+    """Vendedor virtual de la tienda."""
+    limitar(request, 30, "vendedor")
+    row, d, bp = _negocio(slug)
+    pagos = _pagos(d)
+    with db() as c:
+        r = c.execute("SELECT * FROM chats WHERE id=? AND negocio_id=?", (m.chat, row["id"])).fetchone() if m.chat else None
+        if r:
+            cid, e, hist, n = r["id"], json.loads(r["estado"]), json.loads(r["historia"]), r["mensajes"]
+        else:
+            cid, e, hist, n = uuid.uuid4().hex, vendedor.estado_inicial(), [], 0
+            c.execute("INSERT INTO chats(id,negocio_id,estado,historia,creado) VALUES(?,?,?,?,?)",
+                      (cid, row["id"], json.dumps(e), "[]", int(time.time())))
+    if n >= 60:
+        raise HTTPException(429, "Llegaste al límite de mensajes de esta charla.")
+    if e["paso"] == "hecho":  # pedido ya hecho: empieza uno nuevo manteniendo los datos del cliente
+        e = {**vendedor.estado_inicial(), "cliente": e["cliente"]}
+    respuesta, proveedor = await vendedor.responder(d, bp, pagos, e, m.texto.strip(), hist)
+    pedido = None
+    if e["paso"] == "final":
+        falta = vendedor.faltantes(e, bp["modo"], pagos)
+        if falta:
+            e["paso"] = "datos"
+            respuesta = vendedor._pedir_dato(e, bp, pagos)
+        else:
+            try:
+                pedido = await _registrar_pedido(request, slug, row, d, bp, e["carrito"], e["cliente"]["nombre"],
+                                                 e["cliente"].get("contacto", ""), e.get("cuando") or "",
+                                                 ("Entrega: " + e["cliente"]["direccion"]) if e["cliente"].get("direccion") else "",
+                                                 e["pago"])
+                e["paso"], e["pedido"] = "hecho", pedido["numero"]
+                respuesta = _mensaje_confirmacion(d, bp, e, pedido)
+            except HTTPException as ex:
+                if ex.status_code == 409:
+                    e["cuando"], e["paso"] = None, "datos"
+                respuesta = f"😕 {ex.detail} " + vendedor._pedir_dato(e, bp, pagos)
+    hist = (hist + [{"role": "user", "content": m.texto[:500]}, {"role": "assistant", "content": respuesta}])[-16:]
+    with db() as c:
+        c.execute("UPDATE chats SET estado=?, historia=?, mensajes=mensajes+1 WHERE id=?",
+                  (json.dumps(e, ensure_ascii=False), json.dumps(hist, ensure_ascii=False), cid))
+    resumen, total = vendedor.resumen(d, e)
+    return {"chat": cid, "respuesta": respuesta, "ia": proveedor, "carrito": e["carrito"], "total": total,
+            "paso": e["paso"], "pedido": pedido}
+
+
+def _mensaje_confirmacion(d, bp, e, p) -> str:
+    turnos = bp["modo"] == "turnos"
+    lineas = "\n".join(f"• {x['cantidad']}× {x['nombre']}" for x in p["detalle"])
+    msg = (f"✅ **¡{'Turno reservado' if turnos else 'Pedido confirmado'}! #{p['numero']}**\n{lineas}\n"
+           f"**Total: {vendedor.fmt(p['total'])}**\n")
+    if turnos:
+        msg += f"📅 {e['cuando'].replace(' ', ' a las ')}\n"
+    elif e["cliente"].get("direccion"):
+        msg += f"🛵 {e['cliente']['direccion']}\n"
+    if p["pago"] == "mercadopago":
+        msg += ("🔵 Pagá acá: " + p["pago_url"]) if p.get("pago_url") else \
+               ("🔵 Pagá con Mercado Pago: " + p["pago_info"]) if p["pago_info"] else "🔵 Te enviamos el link de Mercado Pago por WhatsApp."
+    elif p["pago"] == "transferencia":
+        msg += f"🏦 Transferí a: {p['pago_info']}"
+    else:
+        retira = "retira" in (e["cliente"].get("direccion") or "").lower()
+        msg += "💵 Pagás en efectivo " + ("en el local." if turnos or retira else "al recibir.")
+    return msg + f"\n\n¡Gracias, {e['cliente']['nombre']}! {d['nombre']} ya lo tiene en su panel 💜"
 
 
 @app.post("/api/mp/webhook")
@@ -346,12 +447,12 @@ def agenda_ics(slug: str, t: str = ""):
 
 
 def _pagos(d: dict) -> dict:
-    """Medios de pago habilitados: {id: dato a mostrar al cliente}. Efectivo por defecto."""
-    cfg = d.get("pagos") or {"efectivo": True}
+    """Medios de pago habilitados: {id: dato a mostrar al cliente}. Por defecto: efectivo + Mercado Pago."""
+    cfg = d.get("pagos") or {"efectivo": True, "mp": True}
     out = {}
     if cfg.get("efectivo"):
         out["efectivo"] = ""
-    if cfg.get("mercadopago") or (mercadopago.activo() and cfg.get("mp_checkout")):
+    if cfg.get("mp", True) or cfg.get("mercadopago"):
         out["mercadopago"] = cfg.get("mercadopago", "")
     if cfg.get("transferencia"):
         out["transferencia"] = cfg["transferencia"]
@@ -367,7 +468,7 @@ def panel(request: Request, slug: str, t: str = ""):
         peds = [dict(r) | {"detalle": json.loads(r["detalle"])} for r in
                 c.execute("SELECT * FROM pedidos WHERE negocio_id=? ORDER BY id DESC LIMIT 200", (row["id"],))]
     return tpl.TemplateResponse(request, "panel.html", {"slug": slug, "d": d, "bp": bp, "pedidos": peds,
-                                                         "token": t, "pagos_cfg": d.get("pagos") or {"efectivo": True},
+                                                         "token": t, "pagos_cfg": d.get("pagos") or {"efectivo": True, "mp": True},
                                                          "mp_activo": mercadopago.activo()})
 
 
@@ -416,6 +517,7 @@ async def importar_csv(slug: str, request: Request, t: str = "", reemplazar: boo
     cab = [h.strip().lower() for h in filas[0]] if filas else []
     idx = lambda *ns: next((cab.index(n) for n in ns if n in cab), None)
     i_n, i_p, i_d = idx("nombre", "producto", "servicio", "name"), idx("precio", "price", "valor"), idx("duracion", "duracion_min", "minutos")
+    i_c = idx("categoria", "categoría", "rubro", "seccion")
     if i_n is None or i_p is None:  # sin encabezado: columna 1 nombre, 2 precio
         i_n, i_p, i_d, datos = 0, 1, 2 if bp["modo"] == "turnos" else None, filas
     else:
@@ -427,6 +529,8 @@ async def importar_csv(slug: str, request: Request, t: str = "", reemplazar: boo
         it = {"nombre": f[i_n], "precio": re.sub(r"[^\d]", "", f[i_p].split(",")[0])}
         if i_d is not None and len(f) > i_d and re.sub(r"\D", "", f[i_d]):
             it["duracion_min"] = re.sub(r"\D", "", f[i_d])
+        if i_c is not None and len(f) > i_c and f[i_c].strip():
+            it["categoria"] = f[i_c].strip()
         nuevos.append(it)
     nuevos = launcher.validar({"items": nuevos}).get("items", [])
     if not nuevos:
@@ -436,8 +540,99 @@ async def importar_csv(slug: str, request: Request, t: str = "", reemplazar: boo
     return {"importados": len(nuevos), "items": d["items"]}
 
 
+@app.get("/media/{archivo}")
+def media(archivo: str):
+    if not re.fullmatch(r"[a-z0-9-]{1,60}\.(png|jpg|webp|gif|svg|ico)", archivo):
+        raise HTTPException(404)
+    f = DATA / "media" / archivo
+    if not f.is_file():
+        raise HTTPException(404)
+    headers = {"Cache-Control": "public, max-age=86400", "X-Content-Type-Options": "nosniff"}
+    if archivo.endswith(".svg"):  # un SVG podría traer scripts: se sirve aislado
+        headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+    return FileResponse(f, headers=headers)
+
+
+class MarcaURL(BaseModel):
+    url: str = Field(..., min_length=4, max_length=500)
+
+
+@app.post("/api/panel/{slug}/marca-url")
+async def marca_url(slug: str, body: MarcaURL, request: Request, t: str = ""):
+    limitar(request, 5, "marca")
+    row, d, bp = _auth(slug, t)
+    try:
+        marca = await importar.extraer_marca(body.url.strip(), f"n{row['id']}-{secrets.token_hex(3)}")
+    except ValueError as ex:
+        raise HTTPException(400, str(ex))
+    except Exception:
+        raise HTTPException(400, "No pude abrir esa página.")
+    if not (marca.get("logo") or marca.get("portada")):
+        raise HTTPException(400, "No encontré imágenes en esa página (Instagram a veces lo bloquea). Probá subir el logo.")
+    d.update({k: v for k, v in marca.items() if k in ("web", "logo", "portada")})
+    _guardar(row["id"], d)
+    return {"logo": d.get("logo"), "portada": d.get("portada")}
+
+
+@app.post("/api/panel/{slug}/logo")
+async def subir_logo(slug: str, request: Request, t: str = ""):
+    """Sube el logo a mano (cuerpo = imagen PNG/JPG/WEBP, máx 3 MB)."""
+    limitar(request, 10, "marca")
+    row, d, bp = _auth(slug, t)
+    tipo = request.headers.get("content-type", "").split(";")[0].lower()
+    ext = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}.get(tipo)
+    data = await request.body()
+    if not ext or not (100 < len(data) <= 3_000_000):
+        raise HTTPException(400, "Subí una imagen PNG, JPG o WEBP de hasta 3 MB.")
+    (DATA / "media").mkdir(exist_ok=True)
+    nombre = f"n{row['id']}-logo-{secrets.token_hex(3)}.{ext}"
+    (DATA / "media" / nombre).write_bytes(data)
+    d["logo"] = f"/media/{nombre}"
+    _guardar(row["id"], d)
+    return {"logo": d["logo"]}
+
+
+class ImportarURL(BaseModel):
+    url: str = Field(..., min_length=4, max_length=500)
+    reemplazar: bool = False
+
+
+@app.post("/api/panel/{slug}/importar-url")
+async def importar_url(slug: str, body: ImportarURL, request: Request, t: str = ""):
+    limitar(request, 5, "importar")
+    row, d, bp = _auth(slug, t)
+    try:
+        nuevos, ia = await importar.importar(body.url.strip(), bp["modo"] == "turnos")
+    except ValueError as ex:
+        raise HTTPException(400, str(ex))
+    except Exception:
+        raise HTTPException(400, "No pude abrir esa página. Probá con otra URL o subí un CSV.")
+    if not nuevos:
+        raise HTTPException(400, "No encontré productos con precio en esa página (las que cargan con JavaScript, como Instagram, no se pueden leer todavía).")
+    d["items"] = (nuevos if body.reemplazar else d.get("items", []) + nuevos)[:200]
+    _guardar(row["id"], d)
+    return {"importados": len(nuevos), "items": d["items"], "ia": ia}
+
+
+class Info(BaseModel):
+    envio: str = Field("", max_length=300)
+    demora: str = Field("", max_length=200)
+    condiciones: str = Field("", max_length=500)
+    faq: str = Field("", max_length=1500)
+
+
+@app.put("/api/panel/{slug}/info")
+def guardar_info(slug: str, info: Info, t: str = ""):
+    """Lo que sabe el vendedor virtual: envíos, demoras, condiciones, preguntas frecuentes."""
+    row, d, bp = _auth(slug, t)
+    d["info"] = {k: v.strip() for k, v in info.model_dump().items()}
+    _guardar(row["id"], d)
+    return d["info"]
+
+
 class Pagos(BaseModel):
     efectivo: bool = True
+    mp: bool = True
     mercadopago: str = Field("", max_length=120)
     transferencia: str = Field("", max_length=120)
 
@@ -445,8 +640,9 @@ class Pagos(BaseModel):
 @app.put("/api/panel/{slug}/pagos")
 def guardar_pagos(slug: str, p: Pagos, t: str = ""):
     row, d, bp = _auth(slug, t)
-    if not (p.efectivo or p.mercadopago.strip() or p.transferencia.strip()):
+    if not (p.efectivo or p.mp or p.transferencia.strip()):
         raise HTTPException(400, "Dejá al menos un medio de pago activo.")
-    d["pagos"] = {"efectivo": p.efectivo, "mercadopago": p.mercadopago.strip(), "transferencia": p.transferencia.strip()}
+    d["pagos"] = {"efectivo": p.efectivo, "mp": p.mp, "mercadopago": p.mercadopago.strip() if p.mp else "",
+                  "transferencia": p.transferencia.strip()}
     _guardar(row["id"], d)
     return d["pagos"]

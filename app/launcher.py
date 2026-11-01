@@ -44,7 +44,8 @@ def pregunta(d: dict) -> str:
     if e == "dolor":
         return f"¡Buenísimo! {bp['emoji']} Te armo una solución de **{'turnos online' if bp['modo']=='turnos' else 'catálogo + pedidos'}**. ¿Cómo te llegan hoy los {'turnos' if bp['modo']=='turnos' else 'pedidos'} y qué es lo que más te complica? (WhatsApp, teléfono, se pierden mensajes…)"
     if e == "negocio":
-        return "Te entiendo, eso es justo lo que vamos a resolver 💪 ¿Cómo se llama tu negocio? Si querés, sumá un teléfono de contacto."
+        return ("Te entiendo, eso es justo lo que vamos a resolver 💪 ¿Cómo se llama tu negocio? Si querés, sumá un teléfono. "
+                "Y si tenés **web o Instagram**, pasame el link y uso tu logo e imágenes 📸")
     if e == "oferta":
         return bp["pregunta_oferta"]
     if e == "horarios":
@@ -183,6 +184,8 @@ def validar(datos: dict) -> dict:
                 x = {"nombre": nombre, "precio": precio}
                 if it.get("duracion_min"):
                     x["duracion_min"] = max(5, min(600, int(it["duracion_min"])))
+                if isinstance(it.get("categoria"), str) and it["categoria"].strip():
+                    x["categoria"] = it["categoria"].strip()[:30]
                 items.append(x)
         except (KeyError, ValueError, TypeError):
             continue
@@ -193,8 +196,27 @@ def validar(datos: dict) -> dict:
 
 # ---------- turno completo ----------
 
-async def procesar(d: dict, texto: str, historia: list[dict]) -> tuple[dict, str, str]:
+URL_RE = re.compile(r"(https?://[^\s]+|(?:www\.)?(?:instagram\.com|[a-z0-9-]+\.(?:com|com\.ar|ar|net|org|online|site|store|shop))(?:/[^\s]*)?)", re.I)
+
+
+async def procesar(d: dict, texto: str, historia: list[dict], sesion: str = "") -> tuple[dict, str, str]:
     """Devuelve (datos_actualizados, respuesta, proveedor)."""
+    # si comparte su web o Instagram, sacamos logo e imagen de portada
+    m = URL_RE.search(texto)
+    if m and not d.get("logo"):
+        from .importar import extraer_marca
+        try:
+            marca = await extraer_marca(m.group(1).rstrip(".,)"), "s" + re.sub(r"\W", "", sesion)[:12])
+        except Exception as ex:
+            log.warning("No se pudo leer la marca: %s", ex)
+            marca = {}
+        texto = URL_RE.sub("", texto).strip(" ,.") or texto
+        if marca.get("logo") or marca.get("portada"):
+            d = {**d, **{k: v for k, v in marca.items() if k in ("web", "logo", "portada")}}
+            if not URL_RE.sub("", m.string).strip(" ,."):
+                return d, "¡Qué lindo! 📸 Ya tomé tu logo e imagen para tu página. " + pregunta(d), "simulado"
+        elif not URL_RE.sub("", m.string).strip(" ,."):
+            return d, "No pude sacar imágenes de ese link (Instagram a veces lo bloquea) 😕 Igual podés subir tu logo después desde el panel. " + pregunta(d), "simulado"
     res = await extraer_deepseek(d, texto, historia)
     proveedor = "deepseek"
     if res is None:

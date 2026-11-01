@@ -33,8 +33,13 @@ Una **solución de ecommerce simplificada y hecha a medida** para el negocio, cr
 | Panel: importación CSV (coma, `;`, tab; con o sin encabezado) | ✅ |
 | Medios de pago: efectivo, Mercado Pago (link/alias), transferencia | ✅ |
 | Mercado Pago Checkout Pro + webhook "pagado" | ✅ código listo, **se activa pegando el access token** (no se usa en la hackatón) |
-| Copiar menú desde URL con IA | 🔜 (placeholder en panel) |
-| Chatbot de pedidos conversacional en la tienda | 🔜 (DeepSeek / Claude / ChatGPT) |
+| Copiar menú desde URL (IA con DeepSeek, heurística sin clave), protegido contra SSRF | ✅ |
+| Logo e imagen de portada desde la web o Instagram (launcher y panel) + subir logo | ✅ |
+| Categorías de productos, tienda agrupada por sección, ilustraciones automáticas | ✅ |
+| Porciones combinables + combos (caso pizzería) | ✅ |
+| **Vendedor virtual** conversacional en la tienda, integrado al catálogo (ver `vendedor-virtual.md`) | ✅ (DeepSeek al cargar la clave; reglas mientras tanto) |
+| Mercado Pago habilitado por defecto junto con efectivo | ✅ |
+| Fotos reales de productos generadas con IA (ChatGPT/DALL·E) | 🔜 (requiere clave; hoy ilustraciones automáticas) |
 | WhatsApp Business API | 🔜 (placeholder en panel) |
 | CRM de clientes (historial, recompra) | 🔜 |
 | Turnos: sin superposición (según duración del servicio), no se reserva en el pasado | ✅ |

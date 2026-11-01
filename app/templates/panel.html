@@ -17,7 +17,7 @@ h1{margin:6px 0 4px;letter-spacing:-.02em}
 .empty{padding:40px;text-align:center;color:var(--muted)}
 .box{padding:18px;margin-bottom:16px}
 .box h3{margin:0 0 4px}
-.irow{display:grid;grid-template-columns:1fr 130px {% if bp.modo == 'turnos' %}100px {% endif %}40px;gap:8px;margin-bottom:8px}
+.irow{display:grid;grid-template-columns:1fr 130px 120px {% if bp.modo == 'turnos' %}100px {% endif %}44px;gap:8px;margin-bottom:8px}
 .irow button{min-height:44px;border:1px solid var(--line);background:#1a1530;color:#ff8fab;border-radius:10px;cursor:pointer}
 .acts{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:center}
 .msg{font-size:.9rem;min-height:1.2em}
@@ -32,7 +32,7 @@ code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(-
 @media(max-width:600px){
   .kpis{grid-template-columns:1fr 1fr;gap:8px}.kpis .kpi:last-child{grid-column:1/-1}.kpi b{font-size:1.3rem}
   .ped{grid-template-columns:auto 1fr;gap:10px}.ped>.price{grid-column:2}
-  .irow{grid-template-columns:1fr {% if bp.modo == 'turnos' %}80px {% endif %}44px;padding-bottom:8px;border-bottom:1px dashed var(--line)}
+  .irow{grid-template-columns:1fr 1fr {% if bp.modo == 'turnos' %}70px {% endif %}44px;padding-bottom:8px;border-bottom:1px dashed var(--line)}
   .irow input:first-child{grid-column:1/-1}
   .tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-inline:-16px;padding-inline:16px}.tabs button{flex:none}
   .box{padding:16px}.acts .btn{flex:1}
@@ -47,6 +47,7 @@ code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(-
   <div class="tabs">
     <button class="btn btn-ghost on" data-tab="pedidos">📥 {{ 'Turnos' if bp.modo == 'turnos' else 'Pedidos' }}</button>
     <button class="btn btn-ghost" data-tab="productos">🛒 {{ 'Servicios' if bp.modo == 'turnos' else 'Productos' }}</button>
+    <button class="btn btn-ghost" data-tab="vendedor">🤖 Vendedor virtual</button>
     <button class="btn btn-ghost" data-tab="pagos">💳 Medios de pago</button>
     <button class="btn btn-ghost" data-tab="integraciones">🔌 Integraciones</button>
   </div>
@@ -78,9 +79,23 @@ code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(-
 
   <section data-sec="productos" hidden>
     <div class="box card">
+      <h3>🎨 Tu marca: logo e imagen</h3>
+      <div style="display:flex;align-items:center;gap:14px;margin:6px 0 12px">
+        <img id="logoPrev" src="{{ d.logo or '/static/icon.svg' }}" alt="Logo" style="width:64px;height:64px;border-radius:16px;object-fit:cover;background:#fff">
+        <p class="muted" style="margin:0">Pegá el link de tu web o Instagram y tomamos tu logo e imagen de portada, o subí tu logo.</p>
+      </div>
+      <input id="bUrl" type="url" inputmode="url" placeholder="https://instagram.com/tu_pizzeria o https://tu-web.com" value="{{ d.web or '' }}">
+      <div class="acts">
+        <button class="btn btn-neon" id="bGo">Tomar de la web</button>
+        <label class="btn btn-ghost" style="cursor:pointer">📷 Subir logo<input type="file" id="bFile" accept="image/png,image/jpeg,image/webp" hidden></label>
+        <span class="msg" id="bMsg"></span>
+      </div>
+    </div>
+    <div class="box card">
       <h3>Cargar a mano</h3>
       <p class="muted" style="margin-top:0">Nombre y precio{% if bp.modo == 'turnos' %} y duración en minutos{% endif %}. Los cambios se ven al instante en tu tienda.</p>
       <div id="items"></div>
+      <datalist id="cats">{% for c in (['Servicios'] if bp.modo == 'turnos' else ['Pizzas','Porciones','Empanadas','Bebidas','Postres','Combos','Productos']) %}<option value="{{ c }}">{% endfor %}</datalist>
       <div class="acts">
         <button class="btn btn-ghost" id="addRow">+ Agregar</button>
         <button class="btn btn-neon" id="saveItems">Guardar cambios</button>
@@ -89,7 +104,7 @@ code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(-
     </div>
     <div class="box card">
       <h3>Importar desde CSV / Excel</h3>
-      <p class="muted" style="margin-top:0">Exportá tu planilla como CSV con columnas <code>nombre,precio{% if bp.modo == 'turnos' %},duracion{% endif %}</code>. Acepta coma, punto y coma o tabulación.</p>
+      <p class="muted" style="margin-top:0">Exportá tu planilla como CSV con columnas <code>nombre,precio,categoria{% if bp.modo == 'turnos' %},duracion{% endif %}</code> (categoría opcional). Acepta coma, punto y coma o tabulación.</p>
       <input type="file" id="csv" accept=".csv,.txt,text/csv">
       <div class="acts">
         <label class="chk muted"><input type="checkbox" id="reemplazar"> Reemplazar los actuales</label>
@@ -97,9 +112,30 @@ code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(-
         <span class="msg" id="csvMsg"></span>
       </div>
     </div>
-    <div class="box card soon">
-      <h3>Copiar menú desde una URL <span class="tag">Próximamente</span></h3>
-      <p class="muted" style="margin:0">Pegá el link de tu menú actual (web, PedidosYa, Instagram) y Marcia lo carga con IA.</p>
+    <div class="box card">
+      <h3>Copiar menú desde una URL <span class="tag"><i></i>IA</span></h3>
+      <p class="muted" style="margin-top:0">Pegá el link de tu menú actual (tu web, una carta online) y Marcia lee los productos y precios con IA. Revisalos antes de guardar.</p>
+      <input id="mUrl" type="url" inputmode="url" placeholder="https://tu-pizzeria.com/menu">
+      <div class="acts">
+        <label class="chk muted"><input type="checkbox" id="mReemp"> Reemplazar los actuales</label>
+        <button class="btn btn-neon" id="mGo">Copiar menú</button>
+        <span class="msg" id="mMsg"></span>
+      </div>
+    </div>
+  </section>
+
+  <section data-sec="vendedor" hidden>
+    <div class="box card pay">
+      <h3>Lo que sabe tu vendedor virtual</h3>
+      <p class="muted" style="margin:0">Además de tu catálogo, precios, horarios y medios de pago, el vendedor responde con esta información. Si algo no está, le dice al cliente que el local lo confirma (nunca inventa).</p>
+      {% set inf = d.info or {} %}
+      {% if bp.modo != 'turnos' %}
+      <label>🛵 Envíos: costo y zona<textarea id="iEnv" maxlength="300" rows="2" placeholder="ej: Envío $1.500 en un radio de 20 cuadras. Gratis en pedidos de más de $30.000. También podés retirar.">{{ inf.envio or '' }}</textarea></label>
+      <label>⏱️ Demora de entrega<input id="iDem" maxlength="200" placeholder="ej: 30 a 45 minutos" value="{{ inf.demora or '' }}"></label>
+      {% endif %}
+      <label>📋 Condiciones de venta<textarea id="iCon" maxlength="500" rows="2" placeholder="{{ 'ej: Cancelaciones con 24 hs de anticipación. Seña del 20% para color.' if bp.modo == 'turnos' else 'ej: Pedido mínimo $5.000. No se aceptan cambios una vez en preparación.' }}">{{ inf.condiciones or '' }}</textarea></label>
+      <label>❓ Otras preguntas frecuentes<textarea id="iFaq" maxlength="1500" rows="4" placeholder="ej: ¿Tienen opciones sin TACC? Sí, prepizza sin TACC +$2.000. ¿Hacen eventos? Sí, consultanos.">{{ inf.faq or '' }}</textarea></label>
+      <div class="acts"><button class="btn btn-neon" id="saveInfo">Guardar</button><span class="msg" id="infoMsg"></span><a class="btn btn-ghost" href="/n/{{ slug }}" target="_blank">Probar el chat ↗</a></div>
     </div>
   </section>
 
@@ -107,7 +143,8 @@ code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(-
     <div class="box card pay">
       <h3>¿Cómo te pueden pagar?</h3>
       <label class="chk"><input type="checkbox" id="pEf" {% if pagos_cfg.efectivo %}checked{% endif %}> 💵 Efectivo (al recibir / en el local)</label>
-      <label>🔵 Mercado Pago: link de pago o alias
+      <label class="chk"><input type="checkbox" id="pMpOn" {% if pagos_cfg.get('mp', True) or pagos_cfg.mercadopago %}checked{% endif %}> 🔵 Aceptar Mercado Pago</label>
+      <label>🔵 Mercado Pago: link de pago o alias (opcional)
         <input id="pMp" maxlength="120" placeholder="ej: link.mercadopago.com.ar/donluigi o alias donluigi.mp" value="{{ pagos_cfg.mercadopago or '' }}"></label>
       <label>🏦 Transferencia: alias o CBU
         <input id="pTr" maxlength="120" placeholder="ej: don.luigi.pizza" value="{{ pagos_cfg.transferencia or '' }}"></label>
@@ -126,7 +163,7 @@ code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(-
     </div>
     {% endif %}
     <div class="box card soon"><h3>💬 WhatsApp Business API <span class="tag">Próximamente</span></h3><p class="muted" style="margin:0">Marcia responde y toma pedidos directo en tu WhatsApp, y te avisa de cada pedido nuevo.</p></div>
-    <div class="box card soon"><h3>🤖 Chatbot de pedidos en tu tienda <span class="tag">Próximamente</span></h3><p class="muted" style="margin:0">Tus clientes piden conversando: "mandame 2 porciones de muzza, ¿qué empanadas tenés?". Con DeepSeek, Claude o ChatGPT.</p></div>
+    <div class="box card"><h3>🤖 Vendedor virtual en tu tienda <span class="tag"><i></i>Activo</span></h3><p class="muted" style="margin:0">Tus clientes piden conversando: "mandame 2 porciones de muzza, ¿qué empanadas tenés?". Responde dudas, arma el pedido, confirma y pide datos de envío y pago. Lo que sabe lo configurás en la pestaña <b>Vendedor virtual</b>. IA: DeepSeek (preparado para Claude o ChatGPT).</p></div>
     <div class="box card soon"><h3>🔵 Mercado Pago Checkout <span class="tag">Próximamente</span></h3><p class="muted" style="margin:0">Cobro online con confirmación automática del pago en el pedido.</p></div>
   </section>
 </div>
@@ -145,9 +182,9 @@ function renderItems(){
   const box=$('#items');box.innerHTML='';
   items.forEach((it,i)=>{
     const r=document.createElement('div');r.className='irow';
-    r.innerHTML=`<input placeholder="Nombre" maxlength="60"><input type="number" min="1" placeholder="Precio $">${TURNOS?'<input class="dur" type="number" min="5" placeholder="Min">':''}<button title="Borrar">✕</button>`;
-    const [n,p,d]=r.querySelectorAll('input');n.value=it.nombre||'';p.value=it.precio||'';if(d)d.value=it.duracion_min||30;
-    n.oninput=()=>it.nombre=n.value;p.oninput=()=>it.precio=+p.value;if(d)d.oninput=()=>it.duracion_min=+d.value;
+    r.innerHTML=`<input placeholder="Nombre" maxlength="60"><input type="number" min="1" inputmode="numeric" placeholder="Precio $"><input placeholder="Categoría" maxlength="30" list="cats">${TURNOS?'<input class="dur" type="number" min="5" inputmode="numeric" placeholder="Min">':''}<button title="Borrar">✕</button>`;
+    const [n,p,c,d]=r.querySelectorAll('input');n.value=it.nombre||'';p.value=it.precio||'';c.value=it.categoria||'';if(d)d.value=it.duracion_min||30;
+    n.oninput=()=>it.nombre=n.value;p.oninput=()=>it.precio=+p.value;c.oninput=()=>it.categoria=c.value;if(d)d.oninput=()=>it.duracion_min=+d.value;
     r.querySelector('button').onclick=()=>{items.splice(i,1);renderItems()};
     box.appendChild(r);
   });
@@ -165,8 +202,20 @@ $('#upCsv').onclick=async()=>{
 };
 if($('#ics')){$('#ics').value=`${location.origin}/agenda/${SLUG}.ics?t=${encodeURIComponent(T)}`;
   $('#copyIcs').onclick=async()=>{try{await navigator.clipboard.writeText($('#ics').value);msg($('#icsMsg'),'✓ Copiado',1)}catch(e){$('#ics').select();msg($('#icsMsg'),'Seleccionado: copialo con Ctrl+C',1)}}}
+$('#bGo').onclick=async()=>{const u=$('#bUrl').value.trim();if(!u){msg($('#bMsg'),'Pegá un link');return}
+  $('#bGo').disabled=true;msg($('#bMsg'),'Buscando tu logo…',1);
+  try{const j=await api('marca-url',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:u})});
+    if(j.logo)$('#logoPrev').src=j.logo;msg($('#bMsg'),'✓ Listo, ya se ve en tu tienda',1)}catch(e){msg($('#bMsg'),e.message)}finally{$('#bGo').disabled=false}};
+$('#bFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;
+  try{const j=await api('logo',{method:'POST',headers:{'Content-Type':f.type},body:f});$('#logoPrev').src=j.logo;msg($('#bMsg'),'✓ Logo actualizado',1)}catch(er){msg($('#bMsg'),er.message)}};
+$('#mGo').onclick=async()=>{const u=$('#mUrl').value.trim();if(!u){msg($('#mMsg'),'Pegá una URL');return}
+  $('#mGo').disabled=true;msg($('#mMsg'),'Leyendo la página…',1);
+  try{const j=await api('importar-url',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:u,reemplazar:$('#mReemp').checked})});
+    items=j.items;renderItems();msg($('#mMsg'),`✓ ${j.importados} productos copiados`+(j.ia==='deepseek'?' con IA':''),1)}catch(e){msg($('#mMsg'),e.message)}finally{$('#mGo').disabled=false}};
+$('#saveInfo').onclick=async()=>{const v=id=>{const el=$(id);return el?el.value:''};
+  try{await api('info',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({envio:v('#iEnv'),demora:v('#iDem'),condiciones:v('#iCon'),faq:v('#iFaq')})});msg($('#infoMsg'),'✓ Guardado',1)}catch(e){msg($('#infoMsg'),e.message)}};
 $('#savePay').onclick=async()=>{
-  try{await api('pagos',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({efectivo:$('#pEf').checked,mercadopago:$('#pMp').value,transferencia:$('#pTr').value})});
+  try{await api('pagos',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({efectivo:$('#pEf').checked,mp:$('#pMpOn').checked,mercadopago:$('#pMp').value,transferencia:$('#pTr').value})});
     msg($('#payMsg'),'✓ Guardado',1)}catch(e){msg($('#payMsg'),e.message)}
 };
 })();

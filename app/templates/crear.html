@@ -87,7 +87,7 @@ const $=s=>document.querySelector(s), msgs=$('#msgs'), t=$('#t'), f=$('#f');
 const ETAPAS=['rubro','dolor','negocio','oferta','horarios','revision'];
 const SUG={rubro:['Tengo una pizzería','Tengo una peluquería','Tengo una ferretería'],
   dolor:['Me llegan por WhatsApp y se me pierden','Atiendo por teléfono y anoto en papel'],
-  negocio:['Se llama Don Luigi, 11 5555-1234','Se llama Estilo Neón'],
+  negocio:['Se llama Don Luigi, 11 5555-1234','Se llama Estilo Neón','Probar con mi web'],
   oferta:[], horarios:['Lunes a sábado de 19 a 23:30','Martes a sábado de 10 a 20'], revision:['Publicar']};
 let S=null; try{S=localStorage.getItem('marcia_sesion')}catch(e){}
 let busy=false, estado={datos:{},etapa:'rubro'};
@@ -101,8 +101,9 @@ function render(e){
   [...$('#steps').children].forEach((s,k)=>s.classList.toggle('on',k<=i));
   $('#modo').textContent=e.rubro?`● ${e.emoji} ${e.rubro} · ${e.modo==='turnos'?'Turnos online':'Catálogo + pedidos'}`:'● se arma mientras charlan';
   const items=(d.items||[]).map(it=>`<div class="row"><span>${esc(it.nombre)}${it.duracion_min?` <span class="muted">· ${it.duracion_min} min</span>`:''}</span><span class="price">${$$(it.precio)}</span></div>`).join('');
-  $('#mock').innerHTML=`<div class="hero"><span class="tag"><i></i>Atendido por Marcia 24/7</span>
-    <h2>${d.nombre?esc(d.nombre):'<span class="empty">Nombre de tu negocio</span>'}</h2>
+  $('#mock').innerHTML=`<div class="hero" ${d.portada?`style="background:linear-gradient(180deg,rgba(11,10,22,.35),#0b0a16 90%),url('${esc(d.portada)}') center/cover"`:''}><span class="tag"><i></i>Atendido por Marcia 24/7</span>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:8px">${d.logo?`<img src="${esc(d.logo)}" alt="" style="width:54px;height:54px;border-radius:14px;object-fit:cover;background:#fff">`:''}
+    <h2 style="margin:0">${d.nombre?esc(d.nombre):'<span class="empty">Nombre de tu negocio</span>'}</h2></div>
     <div class="muted">${e.rubro?esc(e.emoji+' '+e.rubro):'<span class="empty">Rubro</span>'}</div></div>
     <div class="sec">${e.modo==='turnos'?'Servicios':'Menú / Catálogo'}</div>
     <div class="list">${items||'<div class="row empty">Acá van a aparecer tus '+(e.modo==='turnos'?'servicios':'productos')+'</div>'}</div>
@@ -115,7 +116,7 @@ function render(e){
   $('#pubTxt').textContent=listo?'¡Todo listo para publicar!':'Completá la charla para publicar.';
   const sg=$('#sug'); sg.innerHTML='';
   (SUG[e.etapa]||[]).concat(e.etapa==='oferta'&&e.datos.blueprint?['Usar ejemplo']:[]).forEach(x=>{const b=document.createElement('button');b.type='button';b.textContent=x;
-    b.onclick=()=>{if(x==='Publicar'){publicar();return} t.value=x==='Usar ejemplo'?({restaurante:'Muzzarella 8000, Napolitana 9500, Fugazzeta 9000',turnos:'Corte 6000 30min, Color 15000 90min, Barba 4000 20min',comercio:'Martillo 12000, Caja de tornillos 3500, Cinta aisladora 1500'})[e.datos.blueprint]:x; enviar()};sg.appendChild(b)});
+    b.onclick=()=>{if(x==='Publicar'){publicar();return} if(x==='Probar con mi web'){t.value='https://';t.focus();return} t.value=x==='Usar ejemplo'?({restaurante:'Muzzarella 8000, Napolitana 9500, Fugazzeta 9000',turnos:'Corte 6000 30min, Color 15000 90min, Barba 4000 20min',comercio:'Martillo 12000, Caja de tornillos 3500, Cinta aisladora 1500'})[e.datos.blueprint]:x; enviar()};sg.appendChild(b)});
 }
 async function enviar(texto){
   texto=(texto??t.value).trim(); if(!texto||busy)return;

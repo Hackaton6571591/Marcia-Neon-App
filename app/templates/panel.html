@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Panel · {{ d.nombre }}</title><meta name="robots" content="noindex">
+<meta http-equiv="refresh" content="20">
+<link rel="stylesheet" href="/static/marcia.css">
+<style>
+.wrap{max-width:1000px;margin:0 auto;padding:20px 16px 60px}
+h1{margin:6px 0 4px;letter-spacing:-.02em}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:20px 0}
+.kpi{padding:16px}.kpi b{display:block;font-size:1.6rem}
+.ped{padding:16px;margin-bottom:12px;display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:start}
+.num{font-weight:900;font-size:1.1rem;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.det{color:var(--muted);font-size:.9rem}
+.when{color:var(--lime);font-weight:700;font-size:.9rem}
+.empty{padding:40px;text-align:center;color:var(--muted)}
+@media(max-width:600px){.kpis{grid-template-columns:1fr 1fr}.ped{grid-template-columns:1fr}}
+</style></head><body>
+<div class="top"><a class="logo" href="/">Marcia <span class="grad">Neon</span></a><a class="btn btn-ghost" href="/n/{{ slug }}" target="_blank">Ver mi página ↗</a></div>
+<div class="wrap">
+  <span class="tag"><i></i>Panel privado · se actualiza solo</span>
+  <h1>{{ d.nombre }}</h1>
+  <div class="muted">{{ bp.emoji }} {{ 'Turnos' if bp.modo == 'turnos' else 'Pedidos' }} recibidos</div>
+  {% set total = pedidos|sum(attribute='total') %}
+  <div class="kpis">
+    <div class="kpi card"><span class="muted">{{ 'Turnos' if bp.modo == 'turnos' else 'Pedidos' }}</span><b>{{ pedidos|length }}</b></div>
+    <div class="kpi card"><span class="muted">Facturación</span><b class="price">${{ "{:,}".format(total).replace(",", ".") }}</b></div>
+    <div class="kpi card"><span class="muted">Perdidos</span><b style="color:var(--lime)">0 🎯</b></div>
+  </div>
+  {% for p in pedidos %}
+  <div class="ped card">
+    <div class="num">#{{ p.id }}</div>
+    <div>
+      <b>{{ p.cliente }}</b>{% if p.contacto %} <span class="muted">· {{ p.contacto }}</span>{% endif %}
+      {% if p.cuando %}<div class="when">📅 {{ p.cuando }}</div>{% endif %}
+      <div class="det">{% for x in p.detalle %}{{ x.cantidad }}× {{ x.nombre }}{% if not loop.last %} · {% endif %}{% endfor %}</div>
+      {% if p.nota %}<div class="det">📝 {{ p.nota }}</div>{% endif %}
+    </div>
+    <div class="price">${{ "{:,}".format(p.total).replace(",", ".") }}</div>
+  </div>
+  {% else %}
+  <div class="empty card">Todavía no hay {{ 'turnos' if bp.modo == 'turnos' else 'pedidos' }}. Compartí tu link: <a href="/n/{{ slug }}">/n/{{ slug }}</a></div>
+  {% endfor %}
+</div>
+</body></html>

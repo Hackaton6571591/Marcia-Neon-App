@@ -1,17 +1,158 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Marcia Neon · Creando tu solución</title><meta name="robots" content="noindex">
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Marcia Neon · Creá tu solución</title><meta name="robots" content="noindex">
+<link rel="stylesheet" href="/static/marcia.css">
 <style>
-body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 20% 0%,rgba(255,61,203,.3),transparent 50%),radial-gradient(circle at 80% 100%,rgba(0,229,255,.25),transparent 50%),#07060f;color:#f3f1ff;font:16px/1.6 system-ui,sans-serif;padding:24px}
-.box{max-width:520px;text-align:center}
-.ava{width:72px;height:72px;margin:0 auto 20px;border-radius:50%;background:linear-gradient(120deg,#ff3dcb,#8b5cff,#00e5ff);display:grid;place-items:center;font-weight:900;font-size:1.8rem;color:#0b0716;box-shadow:0 0 40px -4px #ff3dcb}
-h1{font-size:1.8rem;letter-spacing:-.02em;margin:0 0 10px}p{color:#a19dbd}
-q{color:#f3f1ff;font-weight:700}
-a{display:inline-block;margin-top:20px;color:#00e5ff;font-weight:700;text-decoration:none}
-</style></head><body><div class="box">
-<div class="ava">M</div>
-<h1>Marcia se está preparando 🚧</h1>
-<p>Recibimos: <q>{{pedido}}</q></p>
-<p>El launcher, el creador de soluciones con IA, está en construcción. Muy pronto vas a poder armar acá la solución de tu negocio en minutos.</p>
-<a href="/">← Volver al inicio</a>
-</div></body></html>
+body{height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+.app{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;padding:20px;max-width:1300px;width:100%;margin:0 auto}
+.panel{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.ph{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.ph b{display:block}.ph small{color:var(--lime);font-size:.75rem}
+.msgs{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth}
+.m{max-width:85%;padding:10px 14px;border-radius:18px;white-space:pre-wrap;word-wrap:break-word;animation:in .3s ease}
+.m.u{align-self:flex-end;background:#262144;border-bottom-right-radius:5px}
+.m.a{align-self:flex-start;background:linear-gradient(135deg,rgba(255,61,203,.16),rgba(0,229,255,.12));border:1px solid var(--line);border-bottom-left-radius:5px}
+.m.a strong,.m.a em{color:#fff}
+.m.err{align-self:center;color:#ff8fab;font-size:.85rem}
+@keyframes in{from{opacity:0;transform:translateY(6px)}}
+.typing{display:inline-flex;gap:4px}.typing i{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:dot 1s infinite}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes dot{50%{transform:translateY(-4px);opacity:.4}}
+.composer{display:flex;gap:8px;padding:12px;border-top:1px solid var(--line)}
+.composer textarea{resize:none;height:46px;max-height:140px}
+.sug{display:flex;gap:8px;flex-wrap:wrap;padding:0 12px 10px}
+.sug button{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:999px;padding:6px 12px;font:inherit;font-size:.83rem;cursor:pointer}
+.sug button:hover{border-color:var(--cyan)}
+.prog{height:6px;background:rgba(255,255,255,.07);border-radius:9px;overflow:hidden;margin:0 16px}
+.prog i{display:block;height:100%;width:0;background:var(--grad);transition:width .6s ease;box-shadow:0 0 14px var(--pink)}
+.steps{display:flex;justify-content:space-between;padding:8px 16px 14px;font-size:.72rem;color:var(--muted)}
+.steps span.on{color:var(--text);font-weight:700}
+.prev{flex:1;overflow-y:auto;padding:18px}
+.mock{border-radius:22px;border:1px solid var(--line);background:#0b0a16;overflow:hidden}
+.mock .hero{padding:24px;background:radial-gradient(circle at 0 0,rgba(255,61,203,.3),transparent 60%),radial-gradient(circle at 100% 100%,rgba(0,229,255,.22),transparent 60%)}
+.mock h2{margin:6px 0 4px;font-size:1.5rem;letter-spacing:-.02em}
+.empty{color:#5d5980;font-style:italic}
+.list{padding:8px 20px 20px}
+.row{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px dashed var(--line)}
+.row:last-child{border:0}
+.sec{padding:14px 20px 0;font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;color:var(--cyan);font-weight:700}
+.info{padding:6px 20px 16px;display:grid;gap:4px;color:var(--muted);font-size:.9rem}
+.pub{padding:16px;border-top:1px solid var(--line);display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.flash{animation:flash 1s ease}
+@keyframes flash{0%{box-shadow:0 0 0 0 rgba(182,255,61,.6)}100%{box-shadow:0 0 0 14px rgba(182,255,61,0)}}
+.done{padding:20px;display:grid;gap:12px}
+.done a.btn{width:100%}
+.tabs{display:none}
+@media(max-width:860px){
+  .app{grid-template-columns:1fr;padding:12px;gap:0}
+  .tabs{display:flex;gap:8px;padding:10px 12px 0}
+  .tabs button{flex:1}
+  .tabs button.on{background:var(--grad);color:#0b0716}
+  .app[data-tab=chat] .p-prev,.app[data-tab=prev] .p-chat{display:none}
+}
+</style></head>
+<body>
+<div class="top">
+  <a class="logo" href="/"><svg viewBox="0 0 64 64"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff3dcb"/><stop offset="1" stop-color="#00e5ff"/></linearGradient></defs><rect width="64" height="64" rx="16" fill="#140f2a"/><path d="M16 46V18l16 16 16-16v28" fill="none" stroke="url(#lg)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>Marcia <span class="grad">Neon</span></a>
+  <span class="tag" id="iaTag"><i></i>IA lista</span>
+</div>
+<div class="tabs"><button class="btn btn-ghost on" data-t="chat">💬 Chat</button><button class="btn btn-ghost" data-t="prev">👀 Vista previa</button></div>
+<div class="app" data-tab="chat">
+  <section class="panel card p-chat">
+    <div class="ph"><div class="ava">M</div><div><b>Marcia</b><small>● Creadora de soluciones con IA</small></div></div>
+    <div class="msgs" id="msgs"></div>
+    <div class="sug" id="sug"></div>
+    <form class="composer" id="f">
+      <textarea id="t" placeholder="Escribile a Marcia…" maxlength="1000" rows="1"></textarea>
+      <button class="btn btn-neon" id="send">Enviar</button>
+    </form>
+  </section>
+  <section class="panel card p-prev">
+    <div class="ph"><div><b>Tu solución</b><small id="modo">● se arma mientras charlan</small></div></div>
+    <div class="prog"><i id="bar"></i></div>
+    <div class="steps" id="steps"><span>Rubro</span><span>Problema</span><span>Negocio</span><span>Oferta</span><span>Horarios</span><span>Listo</span></div>
+    <div class="prev"><div class="mock" id="mock"></div></div>
+    <div class="pub" id="pub"><span class="muted" id="pubTxt">Completá la charla para publicar.</span><button class="btn btn-neon" id="pubBtn" disabled>🚀 Publicar</button></div>
+  </section>
+</div>
+<script>
+(()=>{
+const $=s=>document.querySelector(s), msgs=$('#msgs'), t=$('#t'), f=$('#f');
+const ETAPAS=['rubro','dolor','negocio','oferta','horarios','revision'];
+const SUG={rubro:['Tengo una pizzería','Tengo una peluquería','Tengo una ferretería'],
+  dolor:['Me llegan por WhatsApp y se me pierden','Atiendo por teléfono y anoto en papel'],
+  negocio:['Se llama Don Luigi, 11 5555-1234','Se llama Estilo Neón'],
+  oferta:[], horarios:['Lunes a sábado de 19 a 23:30','Martes a sábado de 10 a 20'], revision:['Publicar']};
+let S=null; try{S=localStorage.getItem('marcia_sesion')}catch(e){}
+let busy=false, estado={datos:{},etapa:'rubro'};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const md=s=>esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
+const $$=n=>'$'+Number(n).toLocaleString('es-AR');
+function add(cls,html){const d=document.createElement('div');d.className='m '+cls;d.innerHTML=html;msgs.appendChild(d);msgs.scrollTop=msgs.scrollHeight;return d}
+function render(e){
+  estado=e; const d=e.datos||{}; const i=ETAPAS.indexOf(e.etapa);
+  $('#bar').style.width=(e.progreso||0)+'%';
+  [...$('#steps').children].forEach((s,k)=>s.classList.toggle('on',k<=i));
+  $('#modo').textContent=e.rubro?`● ${e.emoji} ${e.rubro} · ${e.modo==='turnos'?'Turnos online':'Catálogo + pedidos'}`:'● se arma mientras charlan';
+  const items=(d.items||[]).map(it=>`<div class="row"><span>${esc(it.nombre)}${it.duracion_min?` <span class="muted">· ${it.duracion_min} min</span>`:''}</span><span class="price">${$$(it.precio)}</span></div>`).join('');
+  $('#mock').innerHTML=`<div class="hero"><span class="tag"><i></i>Atendido por Marcia 24/7</span>
+    <h2>${d.nombre?esc(d.nombre):'<span class="empty">Nombre de tu negocio</span>'}</h2>
+    <div class="muted">${e.rubro?esc(e.emoji+' '+e.rubro):'<span class="empty">Rubro</span>'}</div></div>
+    <div class="sec">${e.modo==='turnos'?'Servicios':'Menú / Catálogo'}</div>
+    <div class="list">${items||'<div class="row empty">Acá van a aparecer tus '+(e.modo==='turnos'?'servicios':'productos')+'</div>'}</div>
+    <div class="sec">Información</div>
+    <div class="info"><span>🕒 ${d.horarios?esc(d.horarios):'<span class="empty">Horarios</span>'}</span>${d.telefono?`<span>📞 ${esc(d.telefono)}</span>`:''}
+    ${d.dolor?`<span>🎯 Resuelve: ${esc(d.dolor)}</span>`:''}</div>`;
+  $('#mock').classList.remove('flash');void $('#mock').offsetWidth;$('#mock').classList.add('flash');
+  const listo=e.etapa==='revision'; $('#pubBtn').disabled=!listo;
+  $('#pubTxt').textContent=listo?'¡Todo listo para publicar!':'Completá la charla para publicar.';
+  const sg=$('#sug'); sg.innerHTML='';
+  (SUG[e.etapa]||[]).concat(e.etapa==='oferta'&&e.datos.blueprint?['Usar ejemplo']:[]).forEach(x=>{const b=document.createElement('button');b.type='button';b.textContent=x;
+    b.onclick=()=>{if(x==='Publicar'){publicar();return} t.value=x==='Usar ejemplo'?({restaurante:'Muzzarella 8000, Napolitana 9500, Fugazzeta 9000',turnos:'Corte 6000 30min, Color 15000 90min, Barba 4000 20min',comercio:'Martillo 12000, Caja de tornillos 3500, Cinta aisladora 1500'})[e.datos.blueprint]:x; enviar()};sg.appendChild(b)});
+}
+async function enviar(texto){
+  texto=(texto??t.value).trim(); if(!texto||busy)return;
+  if(estado.etapa==='revision'&&/^(publicar|si|sí|dale|listo|ok)\b/i.test(texto)){t.value='';add('u',esc(texto));publicar();return}
+  busy=true; t.value=''; $('#send').disabled=true; add('u',esc(texto));
+  const typ=add('a','<span class="typing"><i></i><i></i><i></i></span>');
+  try{
+    const r=await fetch('/api/launcher/mensaje',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sesion:S,texto})});
+    const j=await r.json(); typ.remove();
+    if(!r.ok){add('err',esc(j.detail||'Error'));return}
+    S=j.sesion; try{localStorage.setItem('marcia_sesion',S)}catch(e){}
+    add('a',md(j.respuesta)); render(j);
+    $('#iaTag').innerHTML=j.ia==='deepseek'?'<i></i>IA: DeepSeek':'<i></i>IA: modo demo';
+  }catch(e){typ.remove();add('err','Sin conexión, probá de nuevo.')}
+  finally{busy=false;$('#send').disabled=false;t.focus()}
+}
+async function publicar(){
+  if(!S||estado.etapa!=='revision')return;
+  $('#pubBtn').disabled=true; $('#pubBtn').textContent='Publicando…';
+  const r=await fetch(`/api/launcher/sesion/${S}/publicar`,{method:'POST'}); const j=await r.json();
+  if(!r.ok){add('err',esc(j.detail||'Error'));$('#pubBtn').disabled=false;$('#pubBtn').textContent='🚀 Publicar';return}
+  const url=location.origin+j.url;
+  add('a',md(`🎉 **¡Tu solución está online!**\nCompartí este link con tus clientes y Marcia empieza a atender:\n${url}\n\nTus pedidos van a llegar a tu panel (guardá ese link, es privado).`));
+  $('#pub').innerHTML=`<div class="done" style="width:100%"><a class="btn btn-neon" href="${esc(j.url)}" target="_blank">Ver mi página →</a><a class="btn btn-ghost" href="${esc(j.url_panel)}" target="_blank">📊 Abrir mi panel</a><button class="btn btn-ghost" id="nueva">✨ Crear otra solución</button></div>`;
+  $('#nueva').onclick=()=>{try{localStorage.removeItem('marcia_sesion')}catch(e){};location.href='/crear'};
+  try{localStorage.removeItem('marcia_sesion')}catch(e){}
+}
+f.addEventListener('submit',e=>{e.preventDefault();enviar()});
+t.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();enviar()}});
+$('#pubBtn').onclick=publicar;
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));$('.app').dataset.tab=b.dataset.t});
+async function init(){
+  const inicial={{ inicial|tojson }};
+  if(S&&!inicial){
+    try{const r=await fetch('/api/launcher/sesion/'+S); if(r.ok){const j=await r.json();
+      (j.historia||[]).forEach(h=>add(h.role==='user'?'u':'a',h.role==='user'?esc(h.content):md(h.content)));
+      render(j); if(j.historia&&j.historia.length)return;}}catch(e){}
+  }
+  if(inicial){S=null;try{localStorage.removeItem('marcia_sesion')}catch(e){}}
+  add('a',md('¡Hola! Soy **Marcia** 💜 Te ayudo a que tu negocio no pierda más pedidos ni turnos. Contame, ¿qué tipo de negocio tenés?'));
+  render({datos:{},etapa:'rubro',progreso:0});
+  if(inicial)enviar(inicial);
+}
+init();
+})();
+</script>
+</body></html>

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>{{ d.nombre }} · {{ 'Turnos online' if bp.modo == 'turnos' else 'Pedidos online' }}</title>
+<link rel="stylesheet" href="/static/marcia.css">
+<style>
+.wrap{max-width:720px;margin:0 auto;padding:20px 16px 120px}
+.hero{padding:28px 24px;border-radius:24px;border:1px solid var(--line);background:radial-gradient(circle at 0 0,rgba(255,61,203,.3),transparent 60%),radial-gradient(circle at 100% 100%,rgba(0,229,255,.22),transparent 60%),#0b0a16}
+.hero h1{margin:10px 0 6px;font-size:clamp(1.7rem,5vw,2.4rem);letter-spacing:-.03em;line-height:1.1}
+.meta{display:flex;flex-wrap:wrap;gap:8px 18px;color:var(--muted);font-size:.92rem;margin-top:10px}
+h2{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cyan);margin:28px 4px 10px}
+.item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;margin-bottom:10px}
+.item .n{font-weight:700}.item small{color:var(--muted)}
+.qty{display:flex;align-items:center;gap:8px}
+.qty button{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:#141127;color:var(--text);font-size:1.1rem;cursor:pointer}
+.qty button.add{background:var(--grad);color:#0b0716;border:0;font-weight:900}
+.qty span{min-width:18px;text-align:center;font-weight:800}
+.form{padding:18px;display:grid;gap:10px}
+.bar{position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));background:rgba(7,6,15,.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line)}
+.bar .in{max-width:720px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ok{text-align:center;padding:30px 20px}
+.ok .big{font-size:3rem}
+.err{color:#ff8fab;font-size:.9rem;min-height:1.2em}
+.foot{text-align:center;color:var(--muted);font-size:.8rem;margin-top:30px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+</style></head><body>
+<div class="wrap" id="app">
+  <div class="hero">
+    <span class="tag"><i></i>Atendido por Marcia · respuesta al instante</span>
+    <h1>{{ d.nombre }}</h1>
+    <div class="muted">{{ bp.emoji }} {{ d.rubro_texto or bp.nombre }}</div>
+    <div class="meta"><span>🕒 {{ d.horarios }}</span>{% if d.telefono %}<span>📞 {{ d.telefono }}</span>{% endif %}</div>
+  </div>
+
+  <h2>{{ 'Elegí tu servicio' if bp.modo == 'turnos' else 'Armá tu pedido' }}</h2>
+  {% for it in d['items'] %}
+  <div class="item card">
+    <div><div class="n">{{ it.nombre }}</div><small>{% if it.duracion_min %}{{ it.duracion_min }} min · {% endif %}<span class="price">${{ "{:,}".format(it.precio).replace(",", ".") }}</span></small></div>
+    <div class="qty" data-i="{{ loop.index0 }}" data-p="{{ it.precio }}">
+      <button type="button" class="rm" aria-label="Quitar">−</button><span>0</span><button type="button" class="add" aria-label="Agregar">+</button>
+    </div>
+  </div>
+  {% endfor %}
+
+  <h2>Tus datos</h2>
+  <form class="form card" id="f">
+    <input name="cliente" required maxlength="60" placeholder="Tu nombre">
+    <input name="contacto" maxlength="40" placeholder="Teléfono / WhatsApp">
+    {% if bp.modo == 'turnos' %}
+    <div class="grid2"><input type="date" name="dia" required><input type="time" name="hora" required step="900"></div>
+    {% endif %}
+    <textarea name="nota" maxlength="300" rows="2" placeholder="{{ 'Algo que debamos saber (opcional)' if bp.modo == 'turnos' else 'Dirección de entrega, aclaraciones: sin cebolla, etc.' }}"></textarea>
+    <div class="err" id="err"></div>
+  </form>
+  <div class="foot">Hecho con 💜 en <a href="/">Marcia Neon</a></div>
+</div>
+<div class="bar"><div class="in"><div><div class="muted" style="font-size:.8rem">Total</div><div class="price" id="tot" style="font-size:1.3rem">$0</div></div>
+<button class="btn btn-neon" id="go" disabled>{{ 'Reservar turno' if bp.modo == 'turnos' else 'Confirmar pedido' }} →</button></div></div>
+<script>
+(()=>{
+const sel={}, $=s=>document.querySelector(s), fmt=n=>'$'+Number(n).toLocaleString('es-AR');
+const turnos={{ (bp.modo == 'turnos')|tojson }};
+function upd(){let t=0,c=0;document.querySelectorAll('.qty').forEach(q=>{const n=sel[q.dataset.i]||0;q.querySelector('span').textContent=n;t+=n*q.dataset.p;c+=n});$('#tot').textContent=fmt(t);$('#go').disabled=!c}
+document.querySelectorAll('.qty').forEach(q=>{
+  q.querySelector('.add').onclick=()=>{const i=q.dataset.i;if(turnos){for(const k in sel)delete sel[k]}sel[i]=Math.min(50,(sel[i]||0)+1);if(turnos)sel[i]=1;upd()};
+  q.querySelector('.rm').onclick=()=>{const i=q.dataset.i;sel[i]=Math.max(0,(sel[i]||0)-1);upd()};
+});
+if(turnos){const d=document.querySelector('[name=dia]');if(d)d.min=new Date().toISOString().slice(0,10)}
+$('#go').onclick=async()=>{
+  const f=$('#f'); if(!f.reportValidity())return;
+  const items={};for(const k in sel)if(sel[k]>0)items[k]=sel[k];
+  const body={cliente:f.cliente.value,contacto:f.contacto.value,nota:f.nota.value,items,cuando:turnos?`${f.dia.value} ${f.hora.value}`:''};
+  $('#go').disabled=true;$('#err').textContent='';
+  try{
+    const r=await fetch('/api/n/{{ slug }}/pedido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const j=await r.json();
+    if(!r.ok){$('#err').textContent=typeof j.detail==='string'?j.detail:'Revisá los datos';$('#go').disabled=false;return}
+    const det=j.detail||j.detalle;
+    $('#app').innerHTML=`<div class="ok card"><div class="big">✅</div><h1>${turnos?'¡Turno reservado!':'¡Pedido confirmado!'}</h1>
+      <p class="muted">${turnos?'Reserva':'Pedido'} #${j.numero}${turnos?' para el '+body.cuando.replace(' ',' a las '):''}</p>
+      <div style="text-align:left;max-width:360px;margin:16px auto">${j.detalle.map(x=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--line)"><span>${x.cantidad}× ${x.nombre.replace(/[<>&]/g,'')}</span><span class="price">${fmt(x.precio*x.cantidad)}</span></div>`).join('')}
+      <div style="display:flex;justify-content:space-between;padding-top:8px;font-weight:800"><span>Total</span><span>${fmt(j.total)}</span></div></div>
+      <p class="muted">El negocio ya lo tiene en su panel. ¡Gracias!</p><a class="btn btn-ghost" href="">Hacer otro</a></div>`;
+    document.querySelector('.bar').remove();
+  }catch(e){$('#err').textContent='Sin conexión, probá de nuevo.';$('#go').disabled=false}
+};
+})();
+</script>
+</body></html>

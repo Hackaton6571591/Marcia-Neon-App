@@ -24,6 +24,7 @@ Python 3.12 · FastAPI · SQLite (WAL) · HTML/CSS/JS nativo · Caddy · systemd
 - [docs/idea-y-evaluacion.md](docs/idea-y-evaluacion.md): evaluación de la idea, alcance del MVP y riesgos.
 - [docs/servidor.md](docs/servidor.md): server, usuario y entorno.
 - [docs/bitacora.md](docs/bitacora.md): registro cronológico de todo lo que se hace.
+- [docs/launcher.md](docs/launcher.md): implementación del launcher, IA, API y pruebas.
 - [docs/deploy.md](docs/deploy.md): Caddy, servicio, URLs y cómo vincular el dominio.
 
 ## Ver en vivo
@@ -32,7 +33,15 @@ Python 3.12 · FastAPI · SQLite (WAL) · HTML/CSS/JS nativo · Caddy · systemd
 
 ## Estado
 - ✅ Landing pública.
-- 🚧 Launcher (`/crear`): placeholder; próximo paso del plan.
+- ✅ Launcher (`/crear`): chat con Marcia + vista previa en vivo + publicar.
+- ✅ Página pública del negocio (`/n/{slug}`): pedidos o turnos.
+- ✅ Panel privado del negocio (`/panel/{slug}?t=…`).
+- ⏳ IA real: DeepSeek integrado, falta cargar la API key (mientras tanto, modo demo).
+
+## Demo rápida
+1. Entrar a la vista previa → "Restaurante".
+2. Responder a Marcia (o usar las sugerencias) → **Publicar**.
+3. Abrir "Ver mi página", hacer un pedido → aparece en "Mi panel".
 
 ## Correr local
 ```bash

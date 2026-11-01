@@ -26,3 +26,9 @@ Registro cronológico. Cada acción relevante se agrega acá.
 - Servicio systemd **`marcia`** (`deploy/marcia.service`): Uvicorn en `127.0.0.1:8000`, usuario `hackaton`, con sandbox.
 - **Vista previa pública con HTTPS:** https://66-97-32-220.sslip.io. Verificado: landing 200, `/.env` 404, compresión zstd, HTTP/3.
 - DonWeb asignó el dominio **`dwday-38964763.online`**. Diagnóstico: delegado a `ns1/ns2.donweb.com` pero sin zona DNS (SERVFAIL). Se documentaron los pasos oficiales de DonWeb para crearla en `deploy.md`. Caddy ya está configurado para el dominio y sacará el certificado solo cuando el DNS resuelva.
+- ⏱️ Queda 1 hora: se prioriza el flujo de punta a punta.
+- Se implementó el **launcher** (`app/launcher.py`, `app/blueprints.py`, `templates/crear.html`): máquina de estados, extracción con DeepSeek (JSON mode + validación) y fallback simulado por reglas, vista previa en vivo, publicar.
+- Se implementó la **página pública del negocio** (`/n/{slug}`, pedidos o turnos con total calculado en servidor) y el **panel privado** (`/panel/{slug}?t=token`).
+- Se creó `.env` (600) con `IA_PROVIDER=deepseek` y clave vacía → funciona en modo demo hasta cargar la key.
+- Pruebas de punta a punta OK para restaurante y peluquería. Se corrigió: límites por endpoint, IP real desde el último `X-Forwarded-For`, texto de Marcia.
+- DNS de `dwday-38964763.online` sigue sin zona (SERVFAIL). Detalle en `launcher.md`.

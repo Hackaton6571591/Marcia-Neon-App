@@ -93,7 +93,7 @@ code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(-
     <div class="box card">
       <h3>🎨 Tu marca: logo e imagen</h3>
       <div style="display:flex;align-items:center;gap:14px;margin:6px 0 12px">
-        <img id="logoPrev" src="{{ d.logo or '/static/icon.svg' }}" alt="Logo" style="width:64px;height:64px;border-radius:16px;object-fit:cover;background:#fff">
+        <img id="logoPrev" src="{{ d.logo or '/static/icon.svg' }}" alt="Logo" style="width:auto;max-width:140px;height:64px;border-radius:14px;object-fit:contain;padding:6px;background:#fff">
         <p class="muted" style="margin:0">Pegá el link de tu web o Instagram y tomamos tu logo e imagen de portada, o subí tu logo.</p>
       </div>
       <input id="bUrl" type="url" inputmode="url" placeholder="https://instagram.com/tu_pizzeria o https://tu-web.com" value="{{ d.web or '' }}">

@@ -149,7 +149,7 @@ def _producto(it: dict) -> dict | None:
     desc = _primero(it, "short_description", "shortDescription", "description", "descripcion", "body_html")
     out = {"nombre": html.unescape(nombre.strip())[:60], "precio": precio}
     if isinstance(cat, str) and cat.strip():
-        out["categoria"] = html.unescape(cat.strip())[:30]
+        out["categoria"] = re.split(r"\s*[>/»]\s*", html.unescape(cat.strip()))[-1][:30]  # "Ropa > Medias" -> "Medias"
     if isinstance(desc, str) and desc.strip():
         out["descripcion"] = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", desc))).strip()[:200]
     if (u := _img(_primero(it, "image", "imagen", "images", "thumbnail", "image_url", "imageUrl", "featured_image", "photo", "foto"))):
@@ -221,7 +221,7 @@ def _filtrar_categoria(prods: list[dict], url: str) -> list[dict]:
     return f or prods
 
 
-async def _bajar_fotos(prods: list[dict], prefijo: str, maximo: int = 40):
+async def _bajar_fotos(prods: list[dict], prefijo: str, maximo: int = 100):
     import asyncio
     sem = asyncio.Semaphore(6)
 
@@ -293,10 +293,33 @@ def _metas(page: str, base: str) -> dict:
         if m:
             icono = urljoin(base, html.unescape(m.group(1)))
             break
+    # logo real: 1) JSON-LD (Organization/Store.logo)  2) <img> con "logo"  3) íconos
+    logo = None
+    for blk in re.findall(r'<script[^>]+application/ld\+json[^>]*>(.*?)</script>', page, re.I | re.S):
+        if m := re.search(r'"logo"\s*:\s*(?:"([^"]+)"|\{[^}]*"url"\s*:\s*"([^"]+)")', blk):
+            logo = urljoin(base, m.group(1) or m.group(2))
+            break
+    if not logo:
+        mejores = []
+        for tag in re.findall(r"<img\b[^>]*>", page, re.I):
+            src = re.search(r'\bsrc=["\']([^"\']+)', tag)
+            if not src or src.group(1).startswith("data:"):
+                continue
+            pts = 3 * bool(re.search(r"logo", src.group(1), re.I)) + 2 * bool(re.search(r'(class|id)=["\'][^"\']*logo', tag, re.I)) + \
+                  1 * bool(re.search(r'alt=["\'][^"\']*logo', tag, re.I))
+            if pts:
+                mejores.append((pts, urljoin(base, html.unescape(src.group(1)))))
+        for m in re.finditer(r'<a[^>]+class=["\'][^"\']*logo[^"\']*["\'][^>]*>\s*<img[^>]+src=["\']([^"\']+)', page, re.I):
+            mejores.append((4, urljoin(base, html.unescape(m.group(1)))))
+        if mejores:
+            logo = max(mejores, key=lambda x: x[0])[1]
+    sitio = meta("og:site_name")
+    if not sitio and (m := re.search(r'<img[^>]+src=["\'][^"\']*logo[^"\']*["\'][^>]*alt=["\']([^"\']{2,40})["\']', page, re.I)):
+        sitio = html.unescape(m.group(1))
     titulo = meta("og:title", "twitter:title")
     if not titulo and (m := re.search(r"<title[^>]*>([^<]{1,120})", page, re.I)):
         titulo = html.unescape(m.group(1)).strip()
-    return {"imagen": meta("og:image", "og:image:url", "twitter:image"), "icono": icono,
+    return {"imagen": meta("og:image", "og:image:url", "twitter:image"), "icono": icono, "logo": logo, "sitio": sitio,
             "titulo": titulo, "descripcion": meta("og:description", "description")}
 
 
@@ -333,14 +356,19 @@ async def extraer_marca(url: str, prefijo: str) -> dict:
     out = {"web": url}
     if m.get("titulo"):
         out["titulo_web"] = m["titulo"][:120]
+    nombre = m.get("sitio") or (re.split(r"\s+[—|\-–:·]\s+", m["titulo"])[0] if m.get("titulo") else None)
+    if nombre and 1 < len(nombre.strip()) <= 40:
+        out["nombre_web"] = nombre.strip()
     # Instagram / redes: og:image es la foto de perfil -> logo. En webs: ícono = logo, og:image = portada.
     es_red = re.search(r"instagram\.com|facebook\.com|tiktok\.com", url, re.I)
     if es_red and m.get("imagen"):
         if logo := await _bajar_imagen(m["imagen"], prefijo + "-logo"):
             out["logo"] = logo
     else:
-        if m.get("icono") and (logo := await _bajar_imagen(m["icono"], prefijo + "-logo")):
-            out["logo"] = logo
+        for cand in (m.get("logo"), m.get("icono")):  # el logo real primero; el ícono solo de respaldo
+            if cand and (logo := await _bajar_imagen(cand, prefijo + "-logo")):
+                out["logo"] = logo
+                break
         if m.get("imagen") and (portada := await _bajar_imagen(m["imagen"], prefijo + "-portada")):
             out["portada"] = portada
             out.setdefault("logo", portada)

@@ -218,6 +218,8 @@ async def procesar(d: dict, texto: str, historia: list[dict], sesion: str = "") 
         items, origen = res[0] if not isinstance(res[0], Exception) else ([], "")
         marca = res[1] if len(res) > 1 and not isinstance(res[1], Exception) else {}
         d = {**d, **{k: v for k, v in marca.items() if k in ("web", "logo", "portada")}}
+        if marca.get("nombre_web") and not d.get("nombre"):
+            d["nombre"] = marca["nombre_web"]
         partes = []
         if items:
             d["items"] = items
@@ -226,7 +228,7 @@ async def procesar(d: dict, texto: str, historia: list[dict], sesion: str = "") 
             con_foto = sum(1 for i in items if i.get("imagen"))
             partes.append(f"📦 ¡Encontré **{len(items)} productos** en tu web" + (f" ({con_foto} con foto)" if con_foto else "") + "! Ya están en tu vista previa.")
         if marca.get("logo"):
-            partes.append("📸 También tomé tu logo.")
+            partes.append("📸 También tomé tu logo" + (f" y el nombre **{d['nombre']}**." if marca.get("nombre_web") and d.get("nombre") == marca["nombre_web"] else "."))
         resto = URL_RE.sub("", texto).strip(" ,.")
         if items:
             resto = ""  # el texto que acompaña al link ("mirá mi web") no es un dato del negocio

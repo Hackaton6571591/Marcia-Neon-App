@@ -101,13 +101,13 @@ function render(e){
   $('#bar').style.width=(e.progreso||0)+'%';
   [...$('#steps').children].forEach((s,k)=>s.classList.toggle('on',k<=i));
   $('#modo').textContent=e.rubro?`● ${e.emoji} ${e.rubro} · ${e.modo==='turnos'?'Turnos online':'Catálogo + pedidos'}`:'● se arma mientras charlan';
-  const items=(d.items||[]).map(it=>`<div class="row"><span>${esc(it.nombre)}${it.duracion_min?` <span class="muted">· ${it.duracion_min} min</span>`:''}</span><span class="price">${$$(it.precio)}</span></div>`).join('');
+  const items=(d.items||[]).slice(0,60).map(it=>`<div class="row" style="align-items:center">${it.imagen?`<img src="${esc(it.imagen)}" alt="" loading="lazy" style="width:44px;height:44px;border-radius:10px;object-fit:cover;flex:none">`:''}<span style="flex:1;min-width:0">${esc(it.nombre)}${it.duracion_min?` <span class="muted">· ${it.duracion_min} min</span>`:''}</span><span class="price">${$$(it.precio)}</span></div>`).join('');
   $('#mock').innerHTML=`<div class="hero" ${d.portada?`style="background:linear-gradient(180deg,rgba(11,10,22,.35),#0b0a16 90%),url('${esc(d.portada)}') center/cover"`:''}><span class="tag"><i></i>Atendido por Marcia 24/7</span>
-    <div style="display:flex;align-items:center;gap:12px;margin-top:8px">${d.logo?`<img src="${esc(d.logo)}" alt="" style="width:54px;height:54px;border-radius:14px;object-fit:cover;background:#fff">`:''}
+    <div style="display:flex;align-items:center;gap:12px;margin-top:8px">${d.logo?`<img src="${esc(d.logo)}" alt="" style="width:auto;max-width:120px;height:54px;border-radius:12px;object-fit:contain;padding:5px;background:#fff">`:''}
     <h2 style="margin:0">${d.nombre?esc(d.nombre):'<span class="empty">Nombre de tu negocio</span>'}</h2></div>
     <div class="muted">${e.rubro?esc(e.emoji+' '+e.rubro):'<span class="empty">Rubro</span>'}</div></div>
     <div class="sec">${e.modo==='turnos'?'Servicios':'Menú / Catálogo'}</div>
-    <div class="list">${items||'<div class="row empty">Acá van a aparecer tus '+(e.modo==='turnos'?'servicios':'productos')+'</div>'}</div>
+    <div class="list">${(d.items||[]).length>60?`<div class="muted" style="padding:8px 0">Mostrando 60 de ${d.items.length} productos</div>`:''}${items||'<div class="row empty">Acá van a aparecer tus '+(e.modo==='turnos'?'servicios':'productos')+'</div>'}</div>
     <div class="sec">Información</div>
     <div class="info"><span>🕒 ${d.horarios?esc(d.horarios):'<span class="empty">Horarios</span>'}</span>${d.telefono?`<span>📞 ${esc(d.telefono)}</span>`:''}
     ${d.dolor?`<span>🎯 Resuelve: ${esc(d.dolor)}</span>`:''}</div>`;

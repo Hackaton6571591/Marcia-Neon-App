@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Panel · {{ d.nombre }}</title><meta name="robots" content="noindex">
+<link rel="stylesheet" href="/static/marcia.css?v=3"><meta name="theme-color" content="#07060f">
+<style>
+.wrap{max-width:400px;margin:0 auto;padding:48px max(16px,env(safe-area-inset-right,0px)) 40px max(16px,env(safe-area-inset-left,0px));text-align:center}
+.logo-n{width:84px;height:84px;margin:0 auto 14px;border-radius:22px;object-fit:contain;background:#fff;padding:6px;display:grid;place-items:center;font-size:2rem;font-weight:900;color:#0b0716}
+h1{margin:0 0 6px;font-size:1.5rem;letter-spacing:-.02em}
+.box{padding:22px;margin-top:20px;text-align:left}
+form{display:grid;gap:10px}
+input{text-align:center;font-size:1.3rem!important;letter-spacing:.2em}
+.err{color:#ff8fab;font-size:.9rem;min-height:1.2em;text-align:center}
+.tip{font-size:.85rem;color:var(--muted);text-align:center}
+</style></head><body>
+<div class="wrap">
+  {% if d.logo %}<img class="logo-n" src="{{ d.logo }}" alt="">{% else %}<div class="logo-n" style="background:var(--grad)">{{ d.nombre[:1]|upper }}</div>{% endif %}
+  <h1>{{ d.nombre }}</h1>
+  <p class="muted" style="margin:0">{{ 'Creá tu clave de acceso para proteger tu panel' if modo == 'crear' else 'Ingresá tu clave para entrar a tu panel' }}</p>
+  <div class="box card">
+    <form id="f">
+      <input name="clave" type="password" inputmode="text" autocomplete="{{ 'new-password' if modo == 'crear' else 'current-password' }}" placeholder="{{ 'Nueva clave' if modo == 'crear' else 'Tu clave' }}" minlength="{{ 4 if modo == 'crear' else 1 }}" maxlength="64" required autofocus>
+      {% if modo == 'crear' %}<input name="clave2" type="password" autocomplete="new-password" placeholder="Repetila" minlength="4" maxlength="64" required>{% endif %}
+      <div class="err" id="err"></div>
+      <button class="btn btn-neon">{{ '🔐 Crear clave y entrar' if modo == 'crear' else 'Entrar' }}</button>
+    </form>
+    <p class="tip">{{ 'Mínimo 4 caracteres. Puede ser un PIN de números (ej: 4821) o una palabra. Guardala: la vas a necesitar cada vez que entres.' if modo == 'crear' else 'Tu sesión queda abierta 7 días en este dispositivo.' }}</p>
+  </div>
+</div>
+<script>
+(()=>{
+const f=document.getElementById('f'), SLUG={{ slug|tojson }}, T={{ t|tojson }}, MODO={{ modo|tojson }};
+f.onsubmit=async e=>{e.preventDefault();const err=document.getElementById('err');err.textContent='';
+  if(MODO==='crear'&&f.clave.value!==f.clave2.value){err.textContent='Las claves no coinciden.';return}
+  const r=await fetch(`/api/panel/${SLUG}/clave/${MODO}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(MODO==='crear'?{t:T,clave:f.clave.value}:{clave:f.clave.value})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){err.textContent=typeof j.detail==='string'?j.detail:(MODO==='crear'?'La clave debe tener al menos 4 caracteres.':'Clave incorrecta.');f.clave.select();return}
+  location.href='/panel/'+SLUG};
+})();
+</script></body></html>

@@ -36,6 +36,15 @@ _cargar_env()
 import logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 app = FastAPI(title="Marcia Neon App", docs_url=None, redoc_url=None, openapi_url=None)
+
+import contextvars
+_REQ: contextvars.ContextVar = contextvars.ContextVar("req", default=None)
+
+
+@app.middleware("http")
+async def _guardar_request(request: Request, call_next):
+    _REQ.set(request)
+    return await call_next(request)
 tpl = Jinja2Templates(directory=BASE / "templates")
 
 
@@ -67,6 +76,9 @@ def init_db():
             c.execute("ALTER TABLE sesiones ADD COLUMN deshacer TEXT")
         c.execute("CREATE TABLE IF NOT EXISTS usuarios(id INTEGER PRIMARY KEY, email TEXT UNIQUE, nombre TEXT, hash TEXT, creado INT)")
         c.execute("CREATE TABLE IF NOT EXISTS sesiones_web(token TEXT PRIMARY KEY, usuario_id INT, expira INT)")
+        c.execute("CREATE TABLE IF NOT EXISTS sesiones_panel(token TEXT PRIMARY KEY, negocio_id INT, expira INT)")
+        if "clave_hash" not in [r[1] for r in c.execute("PRAGMA table_info(negocios)")]:
+            c.execute("ALTER TABLE negocios ADD COLUMN clave_hash TEXT")
         if "usuario_id" not in [r[1] for r in c.execute("PRAGMA table_info(negocios)")]:
             c.execute("ALTER TABLE negocios ADD COLUMN usuario_id INT")
         c.execute("CREATE TABLE IF NOT EXISTS google(negocio_id INT PRIMARY KEY, refresh_token TEXT, access_token TEXT, expira INT, email TEXT)")
@@ -283,6 +295,25 @@ def ver_negocio(request: Request, slug: str):
     nombres = [it["nombre"] for it in d["items"]]
     return tpl.TemplateResponse(request, "negocio.html", {"slug": slug, "d": d, "bp": bp, "pagos": _pagos(d),
                                                            "grupos": grupos, "ej": nombres[0] if nombres else ""})
+
+
+@app.get("/n/{slug}/qr.png")
+def qr_tienda(slug: str, descargar: int = 0):
+    """Código QR de la tienda (para imprimir y pegar en el local, en el folleto, en el mostrador)."""
+    import io
+    import qrcode
+    from fastapi.responses import Response
+    _negocio(slug)
+    url = (os.getenv("BASE_URL", "").rstrip("/") or "https://dwday-38964763.online") + f"/n/{slug}"
+    q = qrcode.QRCode(box_size=12, border=3, error_correction=qrcode.constants.ERROR_CORRECT_M)
+    q.add_data(url)
+    q.make(fit=True)
+    buf = io.BytesIO()
+    q.make_image(fill_color="#0b0716", back_color="white").save(buf, format="PNG")
+    h = {"Cache-Control": "public, max-age=86400"}
+    if descargar:
+        h["Content-Disposition"] = f'attachment; filename="qr-{slug}.png"'
+    return Response(buf.getvalue(), media_type="image/png", headers=h)
 
 
 @app.get("/n/{slug}/manifest.webmanifest")
@@ -860,13 +891,15 @@ def _pagos(d: dict) -> dict:
 def panel(request: Request, slug: str, t: str = ""):
     row, d, bp = _negocio(slug)
     u = usuario_actual(request)
-    if row["usuario_id"]:  # negocio con cuenta: se entra con usuario y contraseña
-        if not u:
-            return RedirectResponse(f"/ingresar?next=/panel/{slug}")
-        if u["id"] != row["usuario_id"]:
-            raise HTTPException(403, "Este negocio pertenece a otra cuenta.")
+    if _acceso_panel(request, row):
         t = row["token_admin"]
-    elif not secrets.compare_digest(t, row["token_admin"]):
+    elif row["clave_hash"]:  # tiene clave: se pide la clave (el link solo ya no alcanza)
+        return tpl.TemplateResponse(request, "panel_clave.html", {"slug": slug, "d": d, "modo": "ingresar", "t": ""})
+    elif row["usuario_id"]:  # negocio con cuenta de email
+        return RedirectResponse(f"/ingresar?next=/panel/{slug}")
+    elif secrets.compare_digest(t, row["token_admin"]):  # primera vez: crear la clave
+        return tpl.TemplateResponse(request, "panel_clave.html", {"slug": slug, "d": d, "modo": "crear", "t": t})
+    else:
         raise HTTPException(403, "Link de panel inválido")
     with db() as c:
         peds = [dict(r) | {"detalle": json.loads(r["detalle"])} for r in
@@ -876,7 +909,8 @@ def panel(request: Request, slug: str, t: str = ""):
                                                          "agenda_cfg": agenda.config(d), "profesionales": agenda.profesionales(d),
                                                          "mp_activo": mercadopago.activo(),
                                                          "despacho": d.get("despacho") or {}, "webhook": d.get("webhook") or {},
-                                                         "sin_cuenta": not row["usuario_id"], "usuario": u})
+                                                         "sin_cuenta": False, "usuario": u, "tiene_clave": bool(row["clave_hash"]),
+                                                         "url_tienda": (os.getenv("BASE_URL", "").rstrip("/") or str(request.base_url).rstrip("/")) + f"/n/{slug}"})
 
 
 # ---------- gestión profesional de pedidos ----------
@@ -1165,7 +1199,106 @@ def _auth(slug, t):
     row, d, bp = _negocio(slug)
     if not secrets.compare_digest(t, row["token_admin"]):
         raise HTTPException(403, "Link de panel inválido")
+    req = _REQ.get()
+    if (row["clave_hash"] or row["usuario_id"]) and req is not None and not _acceso_panel(req, row):
+        raise HTTPException(401, "Tu sesión venció. Volvé a ingresar tu clave.")
     return row, d, bp
+
+
+# ---------- clave de acceso (PIN) del panel ----------
+
+def _cookie_panel(row) -> str:
+    return f"mpanel{row['id']}"
+
+
+def _acceso_panel(request: Request, row) -> bool:
+    """Acceso por sesión de panel (clave/PIN) o por la cuenta dueña del negocio."""
+    u = usuario_actual(request)
+    if u and row["usuario_id"] and u["id"] == row["usuario_id"]:
+        return True
+    tok = request.cookies.get(_cookie_panel(row), "")
+    if not tok:
+        return False
+    with db() as c:
+        r = c.execute("SELECT 1 FROM sesiones_panel WHERE token=? AND negocio_id=? AND expira>?",
+                      (_hl.sha256(tok.encode()).hexdigest(), row["id"], int(time.time()))).fetchone()
+    return bool(r)
+
+
+def _abrir_sesion_panel(resp, row):
+    tok = secrets.token_urlsafe(32)
+    with db() as c:
+        c.execute("INSERT INTO sesiones_panel(token, negocio_id, expira) VALUES(?,?,?)",
+                  (_hl.sha256(tok.encode()).hexdigest(), row["id"], int(time.time()) + 7 * 86400))
+    resp.set_cookie(_cookie_panel(row), tok, max_age=7 * 86400, httponly=True, secure=True, samesite="lax", path="/")
+
+
+class ClaveNueva(BaseModel):
+    t: str = Field(..., max_length=60)
+    clave: str = Field(..., min_length=4, max_length=64)
+
+
+class ClaveIngreso(BaseModel):
+    clave: str = Field(..., min_length=1, max_length=64)
+
+
+class ClaveCambio(BaseModel):
+    actual: str = Field(..., min_length=1, max_length=64)
+    nueva: str = Field(..., min_length=4, max_length=64)
+
+
+@app.post("/api/panel/{slug}/clave/crear")
+def clave_crear(slug: str, body: ClaveNueva, request: Request):
+    """Primera vez: con el link privado, el negocio crea su clave de acceso."""
+    limitar(request, 6, "pin:" + slug)
+    row, d, bp = _negocio(slug)
+    if row["clave_hash"]:
+        raise HTTPException(400, "Este panel ya tiene clave. Ingresala para entrar.")
+    if not secrets.compare_digest(body.t, row["token_admin"]):
+        raise HTTPException(403, "Link de panel inválido")
+    with db() as c:
+        c.execute("UPDATE negocios SET clave_hash=? WHERE id=?", (_hash_clave(body.clave), row["id"]))
+    resp = JSONResponse({"ok": True})
+    _abrir_sesion_panel(resp, row)
+    return resp
+
+
+@app.post("/api/panel/{slug}/clave/ingresar")
+def clave_ingresar(slug: str, body: ClaveIngreso, request: Request):
+    limitar(request, 6, "pin:" + slug)
+    row, d, bp = _negocio(slug)
+    if not row["clave_hash"] or not _verificar_clave(body.clave, row["clave_hash"]):
+        raise HTTPException(401, "Clave incorrecta.")
+    resp = JSONResponse({"ok": True})
+    _abrir_sesion_panel(resp, row)
+    return resp
+
+
+@app.put("/api/panel/{slug}/clave")
+def clave_cambiar(slug: str, body: ClaveCambio, request: Request, t: str = ""):
+    """Cambiar la clave: pide la actual. Cierra las sesiones de los demás dispositivos."""
+    limitar(request, 6, "pin:" + slug)
+    row, d, bp = _auth(slug, t)
+    if row["clave_hash"] and not _verificar_clave(body.actual, row["clave_hash"]):
+        raise HTTPException(401, "La clave actual no es correcta.")
+    with db() as c:
+        c.execute("UPDATE negocios SET clave_hash=? WHERE id=?", (_hash_clave(body.nueva), row["id"]))
+        c.execute("DELETE FROM sesiones_panel WHERE negocio_id=?", (row["id"],))
+    resp = JSONResponse({"ok": True})
+    _abrir_sesion_panel(resp, row)
+    return resp
+
+
+@app.post("/api/panel/{slug}/salir")
+def panel_salir(slug: str, request: Request):
+    row, d, bp = _negocio(slug)
+    tok = request.cookies.get(_cookie_panel(row), "")
+    if tok:
+        with db() as c:
+            c.execute("DELETE FROM sesiones_panel WHERE token=?", (_hl.sha256(tok.encode()).hexdigest(),))
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(_cookie_panel(row), path="/")
+    return resp
 
 
 def _guardar(row_id, d):

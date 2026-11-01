@@ -175,6 +175,7 @@ h2{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cy
   <div class="tb-in">
     {% if d.logo %}<img class="tb-logo{% if d.logo_claro %} dark{% endif %}" src="{{ d.logo }}" alt="">{% else %}<div class="ava">{{ d.nombre[:1]|upper }}</div>{% endif %}
     <b class="tb-name">{{ d.nombre }}</b>
+    <button class="tb-btn" id="shBtn" aria-label="Compartir">📤</button>
     <button class="tb-btn" id="sBtn" aria-label="Buscar">🔍</button>
   </div>
   <div class="tb-search" id="sBox" hidden><input id="sIn" type="search" placeholder="Buscar en {{ d.nombre }}…" autocomplete="off" enterkeyhint="search"></div>
@@ -327,6 +328,9 @@ if($('#cats')){const links=[...document.querySelectorAll('#cats a')];
   const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){links.forEach(a=>a.classList.toggle('on',a.dataset.c===e.target.id));const on=links.find(a=>a.dataset.c===e.target.id);on&&on.scrollIntoView({inline:'center',block:'nearest',behavior:'smooth'})}}),{rootMargin:'-120px 0px -60% 0px'});
   document.querySelectorAll('.catsec').forEach(s=>io.observe(s))}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')cerrarBS()});
+$('#shBtn').onclick=async()=>{const url=location.origin+'/n/'+SLUG;
+  if(navigator.share){navigator.share({title:NOMBRE,text:'Mirá '+NOMBRE+' y pedí online 🛒',url}).catch(()=>{});return}
+  window.open('https://wa.me/?text='+encodeURIComponent('Mirá '+NOMBRE+' y pedí online 🛒 '+url),'_blank')};
 document.querySelectorAll('[data-fol]').forEach(b=>b.onclick=()=>{const v=document.createElement('div');v.className='fol-full';v.innerHTML=`<img src="${esc(b.dataset.fol)}" alt="">`;v.onclick=()=>v.remove();document.body.appendChild(v)});
 /* ---- agenda de turnos: profesional → día → horario libre ---- */
 const DIAS_C=['dom','lun','mar','mié','jue','vie','sáb'];

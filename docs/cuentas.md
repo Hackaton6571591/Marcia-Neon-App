@@ -1,4 +1,14 @@
-# Cuentas: usuario y contraseña para los negocios
+# Acceso al panel: clave (PIN) por negocio + cuentas opcionales
+
+## Clave de acceso (modo principal)
+- La **primera vez** que el negocio abre su panel (con el link que recibe al publicar), Marcia le pide **crear su clave** (mínimo 4 caracteres; puede ser un PIN numérico).
+- Las **veces siguientes** le pide la clave. La sesión queda abierta 7 días en ese dispositivo (cookie HttpOnly/Secure; en la base solo el hash).
+- Una vez creada la clave, **el link solo ya no alcanza**: ni el panel ni la API del panel funcionan sin sesión (401).
+- **🔐 Acceso** en el panel: cambiar la clave (pide la actual; cierra las sesiones de los demás dispositivos) y cerrar sesión.
+- Clave con scrypt + sal; límite de intentos por IP (6/min por negocio).
+- Probado: crear (corta → rechazo), entrar, otro dispositivo con el link → pide clave, API sin sesión → 401, clave incorrecta, cambio de clave cierra la otra sesión, cerrar sesión, límite de intentos (429).
+
+# Cuentas con email (opcional)
 
 Cada negocio entra a su panel con **email y contraseña**.
 

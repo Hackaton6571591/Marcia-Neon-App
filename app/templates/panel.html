@@ -45,6 +45,10 @@ h1{margin:6px 0 4px;letter-spacing:-.02em}
 .tuto{margin:4px 0;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:#0d0b1a}
 .tuto summary{cursor:pointer;font-weight:700}
 .tuto ol{margin:10px 0;padding-left:20px;color:var(--muted);line-height:1.6}
+.share{display:flex;flex-wrap:wrap;gap:8px}
+.sh{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border-radius:999px;border:1px solid var(--line);background:#0d0b1a;color:var(--text);font:inherit;font-size:.9rem;font-weight:600;cursor:pointer;text-decoration:none;min-height:40px}
+.sh.wa{background:#25d366;color:#04140a;border-color:transparent}
+.sh:hover{border-color:var(--cyan)}
 .fols{display:flex;gap:10px;flex-wrap:wrap}
 .folp{position:relative}.folp img{height:90px;border-radius:12px;display:block}
 .folp button{position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;border:0;background:rgba(0,0,0,.7);color:#fff;cursor:pointer}
@@ -54,6 +58,10 @@ h1{margin:6px 0 4px;letter-spacing:-.02em}
 @media(max-width:600px){.tuto{margin:4px 0;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:#0d0b1a}
 .tuto summary{cursor:pointer;font-weight:700}
 .tuto ol{margin:10px 0;padding-left:20px;color:var(--muted);line-height:1.6}
+.share{display:flex;flex-wrap:wrap;gap:8px}
+.sh{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border-radius:999px;border:1px solid var(--line);background:#0d0b1a;color:var(--text);font:inherit;font-size:.9rem;font-weight:600;cursor:pointer;text-decoration:none;min-height:40px}
+.sh.wa{background:#25d366;color:#04140a;border-color:transparent}
+.sh:hover{border-color:var(--cyan)}
 .fols{display:flex;gap:10px;flex-wrap:wrap}
 .folp{position:relative}.folp img{height:90px;border-radius:12px;display:block}
 .folp button{position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;border:0;background:rgba(0,0,0,.7);color:#fff;cursor:pointer}
@@ -88,12 +96,25 @@ code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(-
   <h1>{{ d.nombre }}</h1>
   <div class="muted">{{ bp.emoji }} {{ d.rubro_texto or bp.nombre }} · tu link público: <a href="/n/{{ slug }}" target="_blank">/n/{{ slug }}</a></div>
 
+  <div class="box card" style="margin-top:16px" id="shareBox">
+    <h3>📣 Compartí tu tienda</h3>
+    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+      <a href="/n/{{ slug }}/qr.png?descargar=1" title="Descargar QR"><img src="/n/{{ slug }}/qr.png" alt="QR de tu tienda" style="width:112px;height:112px;border-radius:12px;background:#fff;display:block"></a>
+      <div style="flex:1;min-width:230px;display:grid;gap:10px">
+        <input readonly value="{{ url_tienda }}" onclick="this.select()">
+        <div id="shareBtns"></div>
+        <span class="muted" style="font-size:.82rem">Tocá el QR para descargarlo e imprimilo para el mostrador, el folleto o la vidriera.</span>
+      </div>
+    </div>
+  </div>
+
   <div class="tabs">
     <button class="btn btn-ghost on" data-tab="pedidos">📥 {{ 'Turnos' if bp.modo == 'turnos' else 'Pedidos' }}</button>
     <button class="btn btn-ghost" data-tab="productos">🛒 {{ 'Servicios' if bp.modo == 'turnos' else 'Productos' }}</button>
     <button class="btn btn-ghost" data-tab="vendedor">🤖 Vendedor virtual</button>
     <button class="btn btn-ghost" data-tab="pagos">💳 Medios de pago</button>
     <button class="btn btn-ghost" data-tab="integraciones">🔌 Integraciones</button>
+    <button class="btn btn-ghost" data-tab="acceso">🔐 Acceso</button>
   </div>
 
   <section data-sec="pedidos">
@@ -200,6 +221,22 @@ code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(-
     </div>
   </section>
 
+  <section data-sec="acceso" hidden>
+    <div class="box card pay">
+      <h3>🔐 Clave de acceso al panel</h3>
+      <p class="muted" style="margin:0">Cada vez que entres a tu panel te pedimos esta clave. Al cambiarla se cierran las sesiones abiertas en otros dispositivos.</p>
+      {% if tiene_clave %}<label>Clave actual<input id="kAct" type="password" autocomplete="current-password" maxlength="64"></label>{% endif %}
+      <label>Nueva clave (mínimo 4)<input id="kNew" type="password" autocomplete="new-password" minlength="4" maxlength="64"></label>
+      <label>Repetir nueva clave<input id="kNew2" type="password" autocomplete="new-password" minlength="4" maxlength="64"></label>
+      <div class="acts"><button class="btn btn-neon" id="kSave">{{ 'Cambiar clave' if tiene_clave else 'Crear clave' }}</button><span class="msg" id="kMsg"></span></div>
+    </div>
+    <div class="box card">
+      <h3>Sesión</h3>
+      <p class="muted" style="margin-top:0">Cerrá la sesión en este dispositivo (por ejemplo, si usaste una compu compartida).</p>
+      <button class="btn btn-ghost" id="kSalir">🚪 Cerrar sesión</button>
+    </div>
+  </section>
+
   <section data-sec="integraciones" hidden>
     {% if bp.modo == 'turnos' %}
     <div class="box card"><h3>📅 Sincronizar con tu agenda <span class="tag"><i></i>Activo</span></h3>
@@ -268,7 +305,7 @@ code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(-
 const T={{ token|tojson }}, SLUG={{ slug|tojson }}, TURNOS={{ (bp.modo == 'turnos')|tojson }};
 let items={{ d['items']|tojson }};
 const $=s=>document.querySelector(s);
-const api=(p,opt={})=>fetch(`/api/panel/${SLUG}/${p}${p.includes('?')?'&':'?'}t=${encodeURIComponent(T)}`,opt).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(typeof j.detail==='string'?j.detail:'Error');return j});
+const api=(p,opt={})=>fetch(`/api/panel/${SLUG}/${p}${p.includes('?')?'&':'?'}t=${encodeURIComponent(T)}`,opt).then(async r=>{if(r.status===401&&!p.startsWith('clave')){location.reload();throw new Error('Sesión vencida')}const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(typeof j.detail==='string'?j.detail:'Error');return j});
 const msg=(el,txt,ok)=>{el.textContent=txt;el.className='msg '+(ok?'ok':'err')};
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
@@ -396,6 +433,23 @@ async function gCargar(){if(!$('#gBox'))return;try{const j=await api('google');
   else{$('#gEstado').textContent='No conectado.';$('#gActs').innerHTML=`<a class="btn btn-neon" href="${j.url}">Conectar con Google Calendar</a>`}}catch(e){}}
 gCargar();
 if($('#salirBtn'))$('#salirBtn').onclick=async()=>{await fetch('/api/cuenta/salir',{method:'POST'});location.href='/ingresar'};
+$('#kSave').onclick=async()=>{const n=$('#kNew').value;if(n.length<4){msg($('#kMsg'),'Mínimo 4 caracteres');return}if(n!==$('#kNew2').value){msg($('#kMsg'),'Las claves no coinciden');return}
+  try{await api('clave',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({actual:$('#kAct')?$('#kAct').value:'-',nueva:n})});
+    ['#kAct','#kNew','#kNew2'].forEach(x=>$(x)&&($(x).value=''));msg($('#kMsg'),'✓ Clave actualizada',1)}catch(e){msg($('#kMsg'),e.message)}};
+$('#kSalir').onclick=async()=>{await fetch(`/api/panel/${SLUG}/salir`,{method:'POST'});if($('#salirBtn'))await fetch('/api/cuenta/salir',{method:'POST'});location.href='/panel/'+SLUG};
+function compartirHTML(url,nombre){const txt=`¡Hacé tu pedido online en ${nombre}! 🛒 ${url}`;const e=encodeURIComponent;
+  return `<div class="share">
+   <a class="sh wa" target="_blank" rel="noopener" href="https://wa.me/?text=${e(txt)}">💬 WhatsApp</a>
+   <a class="sh" href="mailto:?subject=${e(nombre+' · pedidos online')}&body=${e(txt)}">✉️ Email</a>
+   <a class="sh" target="_blank" rel="noopener" href="https://t.me/share/url?url=${e(url)}&text=${e('Hacé tu pedido online en '+nombre)}">✈️ Telegram</a>
+   <a class="sh" target="_blank" rel="noopener" href="https://www.facebook.com/sharer/sharer.php?u=${e(url)}">📘 Facebook</a>
+   <a class="sh" target="_blank" rel="noopener" href="https://twitter.com/intent/tweet?text=${e(txt)}">𝕏 X</a>
+   <button type="button" class="sh" data-copiar="${url}">🔗 Copiar link</button>
+   ${navigator.share?`<button type="button" class="sh" data-nativo="${url}">📤 Más…</button>`:''}
+  </div>`}
+function activarCompartir(box,nombre){box.querySelectorAll('[data-copiar]').forEach(b=>b.onclick=async()=>{try{await navigator.clipboard.writeText(b.dataset.copiar);b.textContent='✓ Copiado'}catch(e){prompt('Copiá el link:',b.dataset.copiar)}});
+  box.querySelectorAll('[data-nativo]').forEach(b=>b.onclick=()=>navigator.share({title:nombre,text:'Hacé tu pedido online en '+nombre,url:b.dataset.nativo}).catch(()=>{}))}
+$('#shareBtns').innerHTML=compartirHTML({{ url_tienda|tojson }},NEG);activarCompartir($('#shareBtns'),NEG);
 $('#savePay').onclick=async()=>{
   try{await api('pagos',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({efectivo:$('#pEf').checked,mp:$('#pMpOn').checked,mercadopago:$('#pMp').value,transferencia:$('#pTr').value})});
     msg($('#payMsg'),'✓ Guardado',1)}catch(e){msg($('#payMsg'),e.message)}

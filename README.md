@@ -20,7 +20,7 @@ Marcia Neon trae **DeepSeek integrado**: un vendedor virtual que conversa con lo
 - **IA incluida** con la clave de la plataforma (modelo económico `deepseek-chat`, caché de contexto, tope diario).
 - **Cada negocio puede usar su propia API key de DeepSeek** desde *Panel → Integraciones → Inteligencia artificial del vendedor*.
 - Tutorial para negocios: [docs/deepseek.md](docs/deepseek.md) y la página pública `/ayuda/deepseek` (también dentro del panel).
-- Sin IA, el sistema sigue funcionando con reglas: nunca se corta una venta.
+- Sin IA, el sistema sigue funcionando con reglas: nunca se corta una venta. Comparación completa y pasos en [docs/uso-con-y-sin-ia.md](docs/uso-con-y-sin-ia.md).
 
 ## Stack
 Python 3.12 · FastAPI · SQLite (WAL) · HTML/CSS/JS nativo · Caddy · systemd. Sin Docker ni Node, optimizado para un VPS de 2 vCPU y 4 GB.
@@ -34,6 +34,7 @@ Python 3.12 · FastAPI · SQLite (WAL) · HTML/CSS/JS nativo · Caddy · systemd
 - [docs/vision-producto.md](docs/vision-producto.md): visión del producto (ecommerce + CRM + chatbot + WhatsApp) y estado por funcionalidad.
 - [docs/cuentas.md](docs/cuentas.md): usuario y contraseña para los negocios.
 - [docs/google-calendar.md](docs/google-calendar.md): sincronización con Google Calendar por API.
+- [docs/uso-con-y-sin-ia.md](docs/uso-con-y-sin-ia.md): **cómo usar Marcia con DeepSeek y sin DeepSeek**, cómo sacar e integrar la API key.
 - [docs/deepseek.md](docs/deepseek.md): **DeepSeek integrado** y tutorial para que cada negocio conecte su propia API key.
 - [docs/vendedor-virtual.md](docs/vendedor-virtual.md): chatbot vendedor de cada tienda (proceso de venta, IA, seguridad).
 - [docs/launcher.md](docs/launcher.md): implementación del launcher, IA, API y pruebas.

@@ -46,6 +46,10 @@ body{height:100dvh;display:flex;flex-direction:column;overflow:hidden}
 .adj-menu button:hover{background:var(--card)}
 .adj-menu span{display:grid;font-size:.9rem}.adj-menu small{color:var(--muted);font-size:.76rem}
 .mock .fol{display:flex;gap:8px;overflow-x:auto;padding:12px 20px 0}.mock .fol img{height:110px;border-radius:12px;flex:none}
+.share{display:flex;flex-wrap:wrap;gap:8px}
+.sh{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border-radius:999px;border:1px solid var(--line);background:#0d0b1a;color:var(--text);font:inherit;font-size:.9rem;font-weight:600;cursor:pointer;text-decoration:none;min-height:40px}
+.sh.wa{background:#25d366;color:#04140a;border-color:transparent}
+.sh:hover{border-color:var(--cyan)}
 .logos{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px}
 .logos button{border:2px solid var(--line);border-radius:14px;padding:6px;background:#fff;cursor:pointer;aspect-ratio:1;display:grid;place-items:center}
 .logos button.sel{border-color:var(--lime);box-shadow:0 0 18px -4px var(--lime)}
@@ -156,15 +160,28 @@ async function enviar(texto){
   }catch(e){typ.remove();add('err','Sin conexión, probá de nuevo.')}
   finally{busy=false;$('#send').disabled=false;t.focus()}
 }
+function compartirHTML(url,nombre){const txt=`¡Hacé tu pedido online en ${nombre}! 🛒 ${url}`;const e=encodeURIComponent;
+  return `<div class="share">
+   <a class="sh wa" target="_blank" rel="noopener" href="https://wa.me/?text=${e(txt)}">💬 WhatsApp</a>
+   <a class="sh" href="mailto:?subject=${e(nombre+' · pedidos online')}&body=${e(txt)}">✉️ Email</a>
+   <a class="sh" target="_blank" rel="noopener" href="https://t.me/share/url?url=${e(url)}&text=${e('Hacé tu pedido online en '+nombre)}">✈️ Telegram</a>
+   <a class="sh" target="_blank" rel="noopener" href="https://www.facebook.com/sharer/sharer.php?u=${e(url)}">📘 Facebook</a>
+   <a class="sh" target="_blank" rel="noopener" href="https://twitter.com/intent/tweet?text=${e(txt)}">𝕏 X</a>
+   <button type="button" class="sh" data-copiar="${url}">🔗 Copiar link</button>
+   ${navigator.share?`<button type="button" class="sh" data-nativo="${url}">📤 Más…</button>`:''}
+  </div>`}
+function activarCompartir(box,nombre){box.querySelectorAll('[data-copiar]').forEach(b=>b.onclick=async()=>{try{await navigator.clipboard.writeText(b.dataset.copiar);b.textContent='✓ Copiado'}catch(e){prompt('Copiá el link:',b.dataset.copiar)}});
+  box.querySelectorAll('[data-nativo]').forEach(b=>b.onclick=()=>navigator.share({title:nombre,text:'Hacé tu pedido online en '+nombre,url:b.dataset.nativo}).catch(()=>{}))}
 async function publicar(){
   if(!S||estado.etapa!=='revision')return;
   $('#pubBtn').disabled=true; $('#pubBtn').textContent='Publicando…';
   const r=await fetch(`/api/launcher/sesion/${S}/publicar`,{method:'POST'}); const j=await r.json();
   if(!r.ok){add('err',esc(j.detail||'Error'));$('#pubBtn').disabled=false;$('#pubBtn').textContent='🚀 Publicar';return}
   const url=location.origin+j.url;
-  add('a',md(`🎉 **¡Tu solución está online!**\nCompartí este link con tus clientes y Marcia empieza a atender:\n${url}\n\nTus pedidos van a llegar a tu panel. Creá tu cuenta para entrar siempre con tu email y contraseña 🔒`));
-  $('#pub').innerHTML=`<div class="done" style="width:100%"><a class="btn btn-neon" href="${esc(j.url)}" target="_blank">Ver mi página →</a>${j.url_cuenta?`<a class="btn btn-neon" href="${esc(j.url_cuenta)}">🔒 Crear mi cuenta (email y contraseña)</a>`:''}<a class="btn btn-ghost" href="${esc(j.url_panel)}" target="_blank">📊 Abrir mi panel</a><button class="btn btn-ghost" id="nueva">✨ Crear otra solución</button></div>`;
+  add('a',md(`🎉 **¡Tu solución está online!**\nCompartí este link con tus clientes y Marcia empieza a atender:\n${url}\n\nTus pedidos van a llegar a tu panel. La primera vez que lo abras vas a crear tu **clave de acceso** 🔐`));
+  $('#pub').innerHTML=`<div class="done" style="width:100%"><div style="display:flex;gap:12px;align-items:center"><img src="${esc(j.url)}/qr.png" alt="QR" style="width:84px;height:84px;border-radius:10px;background:#fff"><div><b>📣 Compartí tu tienda</b><div class="muted" style="font-size:.82rem">Mandala a tus clientes o imprimí el QR</div></div></div>${compartirHTML(url,(estado.datos||{}).nombre||'mi negocio')}<a class="btn btn-neon" href="${esc(j.url)}" target="_blank">Ver mi página →</a><a class="btn btn-ghost" href="${esc(j.url_panel)}" target="_blank">📊 Abrir mi panel${j.con_cuenta?'':' (vas a crear tu clave)'}</a><button class="btn btn-ghost" id="nueva">✨ Crear otra solución</button></div>`;
   if(matchMedia('(max-width:860px)').matches)document.querySelector('.tabs [data-t=prev]').click();
+  activarCompartir($('#pub'),(estado.datos||{}).nombre||'mi negocio');
   $('#nueva').onclick=()=>{try{localStorage.removeItem('marcia_sesion')}catch(e){};location.href='/crear'};
   try{localStorage.removeItem('marcia_sesion')}catch(e){}
 }

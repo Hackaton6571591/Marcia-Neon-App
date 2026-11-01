@@ -42,13 +42,19 @@ h1{margin:6px 0 4px;letter-spacing:-.02em}
 .box{padding:18px;margin-bottom:16px}
 .box h3{margin:0 0 4px}
 .irow{display:grid;grid-template-columns:1fr 110px 120px {% if bp.modo == 'turnos' %}90px {% else %}90px {% endif %}44px;gap:8px;margin-bottom:8px}
+.tuto{margin:4px 0;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:#0d0b1a}
+.tuto summary{cursor:pointer;font-weight:700}
+.tuto ol{margin:10px 0;padding-left:20px;color:var(--muted);line-height:1.6}
 .fols{display:flex;gap:10px;flex-wrap:wrap}
 .folp{position:relative}.folp img{height:90px;border-radius:12px;display:block}
 .folp button{position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;border:0;background:rgba(0,0,0,.7);color:#fff;cursor:pointer}
 .logos-p{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
 .logos-p button{border:2px solid var(--line);border-radius:14px;padding:6px;background:#fff;cursor:pointer;aspect-ratio:1;display:grid;place-items:center}
 .logos-p img{max-width:100%;max-height:100%;object-fit:contain}
-@media(max-width:600px){.fols{display:flex;gap:10px;flex-wrap:wrap}
+@media(max-width:600px){.tuto{margin:4px 0;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:#0d0b1a}
+.tuto summary{cursor:pointer;font-weight:700}
+.tuto ol{margin:10px 0;padding-left:20px;color:var(--muted);line-height:1.6}
+.fols{display:flex;gap:10px;flex-wrap:wrap}
 .folp{position:relative}.folp img{height:90px;border-radius:12px;display:block}
 .folp button{position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;border:0;background:rgba(0,0,0,.7);color:#fff;cursor:pointer}
 .logos-p{grid-template-columns:repeat(2,1fr)}}
@@ -211,8 +217,17 @@ code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(-
       <div class="acts"><button class="btn btn-neon" id="dSave">Guardar</button><span class="msg" id="dMsg"></span></div>
     </div>
     <div class="box card pay">
-      <h3>🧠 Inteligencia artificial del vendedor</h3>
-      <p class="muted" style="margin:0">Por defecto usás la IA de Marcia (DeepSeek). Si querés, conectá <b>tu propia API key</b> y el vendedor virtual usa tu cuenta. La clave se guarda cifrada en el servidor y nunca se vuelve a mostrar.</p>
+      <h3>🧠 Inteligencia artificial del vendedor <span class="tag"><i></i>DeepSeek</span></h3>
+      <p class="muted" style="margin:0">Tu tienda ya trae <b>DeepSeek integrado</b> (IA de Marcia). Si querés, conectá <b>tu propia cuenta de DeepSeek</b> y el vendedor virtual usa tu IA. La clave se guarda en el servidor, separada de tus datos públicos, y nunca se vuelve a mostrar.</p>
+      <details class="tuto"><summary>📘 Cómo conseguir tu API key de DeepSeek (3 minutos)</summary>
+        <ol>
+          <li>Entrá a <a href="https://platform.deepseek.com" target="_blank" rel="noopener">platform.deepseek.com</a> y creá tu cuenta.</li>
+          <li>En <b>Top up</b> cargá algunos dólares (alcanza para miles de conversaciones).</li>
+          <li>En <b>API keys → Create new API key</b> copiá la clave que empieza con <code>sk-</code> (se muestra una sola vez).</li>
+          <li>Acá abajo elegí <b>"Mi cuenta de DeepSeek"</b>, pegala y tocá <b>Guardar y probar</b>.</li>
+        </ol>
+        <a href="/ayuda/deepseek" target="_blank">Ver el tutorial completo ↗</a>
+      </details>
       <label>Proveedor<select id="iaProv"><option value="plataforma">IA de Marcia (incluida)</option><option value="deepseek">Mi cuenta de DeepSeek</option><option value="openai">Mi cuenta de OpenAI (ChatGPT)</option></select></label>
       <div id="iaKeyBox" hidden>
         <label>API key<input id="iaKey" type="password" autocomplete="off" placeholder="sk-..."></label>

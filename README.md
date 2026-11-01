@@ -15,6 +15,13 @@ El **launcher** (creador de soluciones) conversa con el dueño del negocio, enti
 
 Integra IA real (DeepSeek) con un proveedor simulado de respaldo para que la demo nunca se caiga.
 
+## 🧠 DeepSeek integrado
+Marcia Neon trae **DeepSeek integrado**: un vendedor virtual que conversa con los clientes, arma pedidos y turnos, muestra productos con foto, y una IA que lee fotos de menús y folletos y copia catálogos de otras webs.
+- **IA incluida** con la clave de la plataforma (modelo económico `deepseek-chat`, caché de contexto, tope diario).
+- **Cada negocio puede usar su propia API key de DeepSeek** desde *Panel → Integraciones → Inteligencia artificial del vendedor*.
+- Tutorial para negocios: [docs/deepseek.md](docs/deepseek.md) y la página pública `/ayuda/deepseek` (también dentro del panel).
+- Sin IA, el sistema sigue funcionando con reglas: nunca se corta una venta.
+
 ## Stack
 Python 3.12 · FastAPI · SQLite (WAL) · HTML/CSS/JS nativo · Caddy · systemd. Sin Docker ni Node, optimizado para un VPS de 2 vCPU y 4 GB.
 
@@ -25,6 +32,7 @@ Python 3.12 · FastAPI · SQLite (WAL) · HTML/CSS/JS nativo · Caddy · systemd
 - [docs/servidor.md](docs/servidor.md): server, usuario y entorno.
 - [docs/bitacora.md](docs/bitacora.md): registro cronológico de todo lo que se hace.
 - [docs/vision-producto.md](docs/vision-producto.md): visión del producto (ecommerce + CRM + chatbot + WhatsApp) y estado por funcionalidad.
+- [docs/deepseek.md](docs/deepseek.md): **DeepSeek integrado** y tutorial para que cada negocio conecte su propia API key.
 - [docs/vendedor-virtual.md](docs/vendedor-virtual.md): chatbot vendedor de cada tienda (proceso de venta, IA, seguridad).
 - [docs/launcher.md](docs/launcher.md): implementación del launcher, IA, API y pruebas.
 - [docs/mobile.md](docs/mobile.md): mobile nativo y PWA (cada tienda se instala como app).

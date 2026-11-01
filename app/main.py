@@ -101,6 +101,11 @@ def salud():
     return {"ok": True, "ia": ia, "mercadopago": "checkout" if mercadopago.activo() else "manual"}
 
 
+@app.get("/ayuda/deepseek", response_class=HTMLResponse)
+def ayuda_deepseek(request: Request):
+    return tpl.TemplateResponse(request, "ayuda_deepseek.html", {})
+
+
 @app.get("/", include_in_schema=False)
 def landing():
     return FileResponse(BASE / "static" / "index.html")

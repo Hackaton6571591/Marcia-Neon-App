@@ -4,8 +4,8 @@
 | URL | Estado | Uso |
 |---|---|---|
 | https://66-97-32-220.sslip.io | ✅ activa, HTTPS (Let's Encrypt) | Vista previa mientras se configura el DNS |
-| https://dwday-38964763.online | ⏳ falta zona DNS en DonWeb | Dominio oficial de la hackatón |
-| https://www.dwday-38964763.online | ⏳ ídem | Alias |
+| https://dwday-38964763.online | ✅ activa, HTTPS (Let's Encrypt) | Dominio oficial de la hackatón |
+| https://www.dwday-38964763.online | ✅ activa | Alias (CNAME) |
 | http://66.97.32.220 | redirige a sslip.io | Acceso por IP |
 
 **sslip.io** es un DNS público que resuelve `66-97-32-220.sslip.io` → `66.97.32.220`. Permite tener HTTPS real sin dominio propio. Cuando el dominio oficial funcione, se puede quitar del Caddyfile.
@@ -65,3 +65,9 @@ Pasos según la [ayuda oficial de DonWeb](https://soporte.donweb.com/es/articles
 6. **Guardar**. La propagación tarda de minutos a 24 h. Se verifica en whatsmydns.net.
 
 Cuando resuelva, Caddy saca el certificado HTTPS solo (no hay que tocar nada en el server).
+
+## Dominio oficial activado (2026-11-01)
+- En DonWeb se creó la zona DNS: `A dwday-38964763.online → 66.97.32.220` y `CNAME www → dwday-38964763.online`. Verificado en Google DNS, Cloudflare y en `ns1/ns2.donweb.com`.
+- Caddy había quedado en espera de reintento (los intentos previos fallaron porque el dominio no existía y ZeroSSL respondía 429). Se reinició Caddy y obtuvo los certificados de **Let's Encrypt** para ambos nombres al instante.
+- `BASE_URL=https://dwday-38964763.online` en `.env`: links de seguimiento, WhatsApp, webhooks de Mercado Pago y callback de Google usan el dominio oficial.
+- **Si el certificado no se emite después de un cambio de DNS:** `sudo systemctl restart caddy` (fuerza un reintento inmediato).

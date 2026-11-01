@@ -41,8 +41,8 @@ Python 3.12 · FastAPI · SQLite (WAL) · HTML/CSS/JS nativo · Caddy · systemd
 - [docs/deploy.md](docs/deploy.md): Caddy, servicio, URLs y cómo vincular el dominio.
 
 ## Ver en vivo
-- Vista previa: https://66-97-32-220.sslip.io
-- Dominio oficial: https://dwday-38964763.online (cuando se cree la zona DNS)
+- **https://dwday-38964763.online** (dominio oficial de la hackatón, HTTPS)
+- Alternativa: https://66-97-32-220.sslip.io
 
 ## Estado
 - ✅ Landing pública.
@@ -62,7 +62,7 @@ Python 3.12 · FastAPI · SQLite (WAL) · HTML/CSS/JS nativo · Caddy · systemd
 3. Abrir "Ver mi página", hacer un pedido → aparece en "Mi panel".
 4. En la tienda, tocar **💬 Pedí por chat** y pedir: *"hola, tenés empanadas de carne?"*, *"3"*, *"y una coca"*, *"eso es todo"*…
 
-Tienda de ejemplo completa: https://66-97-32-220.sslip.io/n/don-luigi-2
+Tienda de ejemplo completa: https://dwday-38964763.online/n/don-luigi-2
 
 ## Correr local
 ```bash

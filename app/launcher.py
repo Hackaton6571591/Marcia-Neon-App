@@ -279,6 +279,14 @@ async def procesar(d: dict, texto: str, historia: list[dict], sesion: str = "") 
             resto = ""  # el texto que acompaña al link ("mirá mi web") no es un dato del negocio
         if partes and not resto:
             return d, " ".join(partes) + " " + pregunta(d), "simulado"
+        plat = importar.es_plataforma(url)
+        if plat and not items and not marca.get("logo") and not resto:
+            nom = {"mercadolibre": "Mercado Libre", "mercadolivre": "Mercado Libre", "pedidosya": "PedidosYa", "ubereats": "Uber Eats",
+                   "uber.com": "Uber Eats", "rappi": "Rappi", "instagram": "Instagram", "facebook": "Facebook"}.get(plat, plat.title())
+            consejo = ("Desde Mercado Libre podés **exportar tus publicaciones a Excel/CSV** y subirlo en tu panel, "
+                       if "mercado" in plat else "")
+            return d, (f"{nom} no deja leer su contenido desde afuera 😕 (es una plataforma cerrada). {consejo}"
+                       "Lo más rápido: subime una **foto de tu menú o folleto** 📷 y te cargo todo. " + pregunta_corta(d)), "simulado"
         if not items and marca:
             partes.insert(0, "No pude leer los productos de tu web (los carga de una forma que no puedo ver) 😕 Pasámelos escritos, "
                              "con una **foto de tu menú** 📷 o un CSV.")

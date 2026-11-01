@@ -412,7 +412,11 @@ async def chat_vendedor(slug: str, m: ChatMsg, request: Request):
     if e["paso"] == "hecho":  # pedido ya hecho: empieza uno nuevo manteniendo los datos del cliente
         e = {**vendedor.estado_inicial(), "cliente": e["cliente"]}
     _sync_carrito(d, bp, e, m.carrito)
-    respuesta, proveedor = await vendedor.responder(d, bp, pagos, e, m.texto.strip(), hist, ia.credenciales(_secreto(row["id"])))
+    turno_resp = _turnero(row, d, bp, e, m.texto.strip()) if bp["modo"] == "turnos" else None
+    if turno_resp:
+        respuesta, proveedor = turno_resp, "simulado"
+    else:
+        respuesta, proveedor = await vendedor.responder(d, bp, pagos, e, m.texto.strip(), hist, ia.credenciales(_secreto(row["id"])))
     pedido = None
     if e["paso"] == "final":
         falta = vendedor.faltantes(e, bp["modo"], pagos)
@@ -436,11 +440,91 @@ async def chat_vendedor(slug: str, m: ChatMsg, request: Request):
         c.execute("UPDATE chats SET estado=?, historia=?, mensajes=mensajes+1 WHERE id=?",
                   (json.dumps(e, ensure_ascii=False), json.dumps(hist, ensure_ascii=False), cid))
     productos = _tarjetas(d, e.pop("_mostrar", None))
+    horarios = e.pop("_horarios", None)
     with db() as c:
         c.execute("UPDATE chats SET estado=? WHERE id=?", (json.dumps(e, ensure_ascii=False), cid))
     resumen, total = vendedor.resumen(d, e)
     return {"chat": cid, "respuesta": respuesta, "ia": proveedor, "carrito": e["carrito"], "total": total,
-            "paso": e["paso"], "pedido": pedido, "productos": productos}
+            "paso": e["paso"], "pedido": pedido, "productos": productos, "horarios": horarios}
+
+
+DISP_RE = re.compile(r"(turno|horario|disponib|libre|lugar|cu[aá]ndo|qu[eé] d[ií]a|ten[eé]s para|hay para|te queda|quedan|agenda)", re.I)
+HORA_EXPLICITA = re.compile(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}|\b\d{1,2}/\d{1,2}\b.*\b\d{1,2}:\d{2}\b")
+
+
+def _fecha_pedida(texto: str):
+    """'el martes', 'mañana', 'hoy', '5/11' -> 'YYYY-MM-DD' (o None)."""
+    from datetime import datetime, timedelta
+    n = vendedor.norm(texto)
+    hoy = datetime.now()
+    if m := re.search(r"\b(\d{1,2})/(\d{1,2})\b", n):
+        try:
+            f = datetime(hoy.year, int(m.group(2)), int(m.group(1)))
+            return (f if f.date() >= hoy.date() else f.replace(year=hoy.year + 1)).strftime("%Y-%m-%d")
+        except ValueError:
+            return None
+    if "pasado manana" in n:
+        return (hoy + timedelta(days=2)).strftime("%Y-%m-%d")
+    if re.search(r"\bmanana\b", n) and not re.search(r"(a la|de la|por la) manana", n):
+        return (hoy + timedelta(days=1)).strftime("%Y-%m-%d")
+    if re.search(r"\bhoy\b", n):
+        return hoy.strftime("%Y-%m-%d")
+    for i, dn in enumerate(vendedor.DIAS):
+        if dn in n:
+            return (hoy + timedelta(days=(i - hoy.weekday()) % 7)).strftime("%Y-%m-%d")
+    return None
+
+
+def _turnero(row, d, bp, e, texto) -> str | None:
+    """Turnero: ofrece horarios LIBRES reales de la agenda y reserva el elegido. Sin IA (exacto y gratis)."""
+    if e.get("paso") not in ("comprando", "confirmar"):
+        return None
+    # 1) eligió un horario ofrecido (botón)
+    ofrecidos = e.get("ofrecidos") or {}
+    elegido = next((v for k, v in ofrecidos.items() if vendedor.norm(k) in vendedor.norm(texto) or v in texto), None)
+    if elegido:
+        servicio = int(next(iter(e["carrito"]), 0)) if e["carrito"] else int(e.get("servicio_turno", 0))
+        e["carrito"] = {str(servicio): 1}
+        e["cuando"] = elegido
+        e["paso"], e["resumen_ok"] = "confirmar", True
+        it = d["items"][servicio]
+        return (f"Perfecto 🙌 Te reservo **{it['nombre']}** el **{agenda.legible(elegido)}** "
+                f"({it.get('duracion_min', 30)} min · {vendedor.fmt(it['precio'])}).\n\n¿Lo confirmo?")
+    # 2) pregunta por disponibilidad
+    if not DISP_RE.search(texto) or HORA_EXPLICITA.search(texto):
+        return None
+    if not d["items"]:
+        return None
+    if e["carrito"]:
+        servicio = int(next(iter(e["carrito"])))
+    else:
+        idx = vendedor.buscar_items(d, texto)
+        if len(idx) == 1:
+            servicio = idx[0]
+        elif len(d["items"]) == 1:
+            servicio = 0
+        else:
+            e["_mostrar"] = list(range(min(6, len(d["items"]))))
+            return "¡Claro! ¿Para qué servicio querés el turno? Elegí uno 👇 y te muestro los horarios libres."
+    e["servicio_turno"] = servicio
+    oc = _ocupados(row["id"], d)
+    fecha = _fecha_pedida(texto)
+    if fecha:
+        slots = [f"{fecha} {x['hora']}" for x in agenda.libres(d, oc, servicio, fecha)][:12]
+        if not slots:
+            prox = agenda.primeros_libres(d, oc, servicio, 6)
+            e["ofrecidos"] = {agenda.legible(x): x for x in prox}
+            e["_horarios"] = [{"valor": x, "txt": agenda.legible(x)} for x in prox]
+            return (f"Ese día no me quedan turnos 😕 Los próximos libres para **{d['items'][servicio]['nombre']}** son estos 👇"
+                    if prox else "No tengo turnos libres en los próximos días 😕 Escribinos y te avisamos si se libera uno.")
+    else:
+        slots = agenda.primeros_libres(d, oc, servicio, 8)
+    e["ofrecidos"] = {agenda.legible(x): x for x in slots}
+    e["_horarios"] = [{"valor": x, "txt": agenda.legible(x)} for x in slots]
+    if not slots:
+        return "No tengo turnos libres en los próximos días 😕 Escribinos y te avisamos si se libera uno."
+    cuando_txt = f"el {agenda.legible(slots[0]).split(' ')[0]} {slots[0][8:10]}/{int(slots[0][5:7])}" if fecha else "los próximos días"
+    return f"Tengo estos turnos libres para **{d['items'][servicio]['nombre']}** {cuando_txt} 👇 Tocá el que te quede mejor."
 
 
 class AgregarChat(BaseModel):
@@ -489,7 +573,7 @@ def _mensaje_confirmacion(d, bp, e, p) -> str:
     msg = (f"✅ **¡{'Turno reservado' if turnos else 'Pedido confirmado'}! #{p['numero']}**\n{lineas}\n"
            f"**Total: {vendedor.fmt(p['total'])}**\n")
     if turnos:
-        msg += f"📅 {e['cuando'].replace(' ', ' a las ')}\n"
+        msg += f"📅 {agenda.legible(e['cuando'])}\n"
     elif e["cliente"].get("direccion"):
         msg += f"🛵 {e['cliente']['direccion']}\n"
     if p["pago"] == "mercadopago":

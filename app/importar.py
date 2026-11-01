@@ -132,8 +132,8 @@ def _img(v) -> str | None:
 
 def _producto(it: dict) -> dict | None:
     nombre = _primero(it, "name", "nombre", "title", "titulo")
-    if not isinstance(nombre, str) or not nombre.strip():
-        return None
+    if not isinstance(nombre, str) or len(nombre.strip()) < 3 or re.fullmatch(r"[\d\s./,-]+", nombre.strip()):
+        return None  # "8", "XL", "42" son talles/variantes, no productos
     precio = None
     if isinstance(it.get("prices"), dict):  # WooCommerce Store API (unidades menores)
         pr = it["prices"]
@@ -201,8 +201,12 @@ async def desde_apis(url: str, page: str) -> list[dict]:
         full = urljoin(base, m.split("?")[0].rstrip("/"))
         if urlparse(full).netloc == u.netloc and full not in cand and not re.search(r"\.(js|css|png|jpg|webp|svg)$", full):
             cand.append(full)
-    cand = cand[:6] + [base + "/products.json?limit=250", base + "/wp-json/wc/store/v1/products?per_page=100",
-                       base + "/wp-json/wc/store/products?per_page=100"]
+    oficiales = [base + "/products.json?limit=250", base + "/wp-json/wc/store/v1/products?per_page=100",
+                 base + "/wp-json/wc/store/products?per_page=100"]
+    if "cdn.shopify" in page or "Shopify" in page:
+        cand = oficiales + cand[:6]  # Shopify: la ruta oficial primero
+    else:
+        cand = cand[:6] + oficiales
     async with httpx.AsyncClient(timeout=10, follow_redirects=False, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"}) as c:
         for cu in cand:
             j = await _get_json(c, cu)
@@ -316,9 +320,20 @@ def _poner_fotos(prods: list[dict], alts: dict):
                 break
 
 
+PLATAFORMAS = re.compile(r"(mercadoli[bv]re|mercadolibre|pedidosya|ubereats|uber\.com|rappi|instagram|facebook|tiktok|"
+                         r"whatsapp|linktr\.ee|google\.com/maps)", re.I)
+
+
+def es_plataforma(url: str) -> str | None:
+    m = PLATAFORMAS.search(urlparse(url if "://" in url else "https://" + url).netloc + urlparse(url if "://" in url else "https://" + url).path[:20])
+    return m.group(1).lower() if m else None
+
+
 async def importar(url: str, servicio: bool, prefijo: str = "imp") -> tuple[list[dict], str]:
     if not re.match(r"^https?://", url):
         url = "https://" + url
+    if es_plataforma(url) and "instagram" not in url and "facebook" not in url:
+        return [], "plataforma"  # marketplaces: no se scrapean (bloqueos/ToS); se usa CSV, foto o su API oficial
     page = await descargar(url)
     prods = desde_jsonld(page)
     origen = "api"
@@ -458,12 +473,14 @@ async def extraer_marca(url: str, prefijo: str) -> dict:
     """Lee la web o el perfil de Instagram y guarda logo + imagen de portada. Devuelve lo que encontró."""
     if not re.match(r"^https?://", url):
         url = "https://" + url
+    if es_plataforma(url) and not re.search(r"instagram|facebook|tiktok", url, re.I):
+        return {}  # nunca tomar el logo/nombre de MercadoLibre, PedidosYa, Uber, Rappi como si fueran del negocio
     page = await descargar(url)
     m = _metas(page, url)
     out = {"web": url}
     if m.get("titulo"):
         out["titulo_web"] = m["titulo"][:120]
-    nombre = m.get("sitio") or m.get("titulo")
+    nombre = None if re.search(r"instagram\.com|facebook\.com|tiktok\.com", url, re.I) else (m.get("sitio") or m.get("titulo"))
     if nombre:
         nombre = re.split(r"\s+[—|\-–:·•]\s+|\s*\|\s*", nombre)[0]
         nombre = re.sub(r"\s*\(@[^)]*\)", "", nombre).strip()

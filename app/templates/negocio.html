@@ -149,6 +149,9 @@ h2{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cy
 .quick button{flex:none;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:999px;padding:8px 13px;font:inherit;font-size:.85rem;cursor:pointer;min-height:38px}
 .cform{display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line)}
 .cform input{flex:1;border-radius:999px}
+.slots{display:flex;flex-wrap:wrap;gap:8px}
+.slot{border:1px solid var(--line);background:#141127;color:var(--text);border-radius:12px;padding:10px 12px;font:inherit;font-weight:700;font-size:.88rem;cursor:pointer;min-height:42px}
+.slot.on,.slot:hover{background:var(--grad);color:#0b0716;border-color:transparent}
 .pcards-wrap{max-width:100%!important;padding:6px!important;background:none!important;border:0!important}
 .pcards{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;padding:2px}
 .pcard{flex:none;width:150px;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#141127;display:flex;flex-direction:column}
@@ -372,7 +375,7 @@ $('#go').onclick=async()=>{
 const sheet=$('#sheet'), cm=$('#cm'), ci=$('#ci');
 let CHAT=null, busy=false, abierto=false;
 try{CHAT=sessionStorage.getItem('chat_'+SLUG)}catch(e){}
-const QUICK=turnos?['¿Qué servicios tienen?','¿Qué horarios tienen?','Quiero un turno','¿Cómo se paga?']
+const QUICK=turnos?['¿Qué turnos tenés disponibles?','¿Qué servicios tienen?','¿Tenés turno mañana?','¿Cómo se paga?']
                   :['¿Qué me recomendás?','Ver productos','¿Cuánto sale el envío?','¿Cómo puedo pagar?'];
 function add(cls,html){const d=document.createElement('div');d.className='m '+cls;d.innerHTML=html;cm.appendChild(d);cm.scrollTop=cm.scrollHeight;return d}
 function quick(list){const q=$('#quick');q.innerHTML='';list.forEach(x=>{const b=document.createElement('button');b.type='button';b.textContent=x;b.onclick=()=>enviar(x);q.appendChild(b)})}
@@ -403,10 +406,12 @@ function tarjetas(lista){
   box.querySelectorAll('[data-add]').forEach(b=>b.onclick=async()=>{
     if(!CHAT)return;b.disabled=true;
     try{const r=await fetch(`/api/n/${SLUG}/chat/agregar`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat:CHAT,indice:+b.dataset.add,carrito:{...sel}})});
-      const j=await r.json();if(r.ok){b.textContent='✓ Agregado';aplicar(j)}else b.disabled=false}catch(e){b.disabled=false}});
+      const j=await r.json();if(r.ok){b.textContent=turnos?'✓ Elegido':'✓ Agregado';aplicar(j);if(turnos)enviar('¿Qué turnos tenés disponibles?')}else b.disabled=false}catch(e){b.disabled=false}});
 }
 function aplicar(j){
     add('a',md(j.respuesta));tarjetas(j.productos);
+    if(j.horarios&&j.horarios.length){const box=add('a pcards-wrap',`<div class="slots">${j.horarios.map(h=>`<button type="button" class="slot" data-v="${esc(h.valor)}">${esc(h.txt)}</button>`).join('')}</div>`);
+      box.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{box.querySelectorAll('.slot').forEach(x=>x.classList.toggle('on',x===b));enviar('Quiero el turno del '+b.textContent)})}
     if(j.ia)$('#iaLbl').textContent=j.ia==='deepseek'?'● Vendedor virtual · IA DeepSeek':'● Vendedor virtual · en línea';
     const n=Object.values(j.carrito||{}).reduce((a,b)=>a+b,0);
     if(j.paso!=='hecho'){for(const k in sel)delete sel[k];Object.entries(j.carrito||{}).forEach(([k,v])=>sel[k]=v);upd()}  // catálogo integrado

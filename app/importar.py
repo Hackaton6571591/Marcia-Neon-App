@@ -55,8 +55,12 @@ def a_texto(page: str) -> str:
     return "\n".join(l for l in lineas if l)
 
 
+NO_PRODUCTO = re.compile(r"(?i)\b(av\.?|avenida|calle|esq\.?|esquina|sucursal|casa central|horario|lunes|martes|miercoles|miércoles|"
+                         r"jueves|viernes|sabado|sábado|domingo|tel[eé]fono|whats|cp\b|piso|depto|cuotas?|env[ií]o|©|copyright|hs\b)")
+
+
 def heuristica(texto: str, servicio: bool) -> list[dict]:
-    lineas = texto.splitlines()
+    lineas = [l for l in texto.splitlines() if not NO_PRODUCTO.search(l)]
     # une "Nombre" + "$ precio" en líneas consecutivas (formato común de menús web)
     unidas = []
     for i, l in enumerate(lineas):
@@ -64,8 +68,9 @@ def heuristica(texto: str, servicio: bool) -> list[dict]:
             unidas[-1] = unidas[-1] + " " + l
         else:
             unidas.append(l)
-    cand = [l for l in unidas if "$" in l or re.search(r"\d{3,}", l)]
-    return parsear_items("\n".join(cand), servicio)
+    cand = [l for l in unidas if "$" in l and not NO_PRODUCTO.search(l)]  # sin "$" no lo tomamos como precio
+    items = parsear_items("\n".join(cand), servicio)
+    return items if len(items) >= 2 else []  # 1 solo "producto" suele ser un falso positivo
 
 
 async def con_ia(texto: str, servicio: bool) -> list[dict] | None:
@@ -80,7 +85,7 @@ async def con_ia(texto: str, servicio: bool) -> list[dict] | None:
             r = await c.post("https://api.deepseek.com/chat/completions", headers={"Authorization": f"Bearer {key}"},
                              json={"model": os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
                                    "messages": [{"role": "user", "content": prompt}],
-                                   "response_format": {"type": "json_object"}, "temperature": 0, "max_tokens": 4000})
+                                   "response_format": {"type": "json_object"}, "temperature": 0, "max_tokens": 6000})
             r.raise_for_status()
             return validar(json.loads(r.json()["choices"][0]["message"]["content"])).get("items", [])
     except Exception as ex:
@@ -274,6 +279,43 @@ def desde_jsonld(page: str) -> list[dict]:
     return prods
 
 
+CAT_RE = re.compile(r"/(?:p/)?(?:cat|categor|productos|tienda|shop|catalog|coleccion|collections|rubro)", re.I)
+
+
+def _links_categorias(page: str, url: str, maximo: int = 3) -> list[str]:
+    u = urlparse(url)
+    out = []
+    for h in re.findall(r'href=["\']([^"\'#]+)', page):
+        full = urljoin(url, html.unescape(h))
+        pu = urlparse(full)
+        if pu.netloc.replace("www.", "") == u.netloc.replace("www.", "") and CAT_RE.search(pu.path) \
+                and full.rstrip("/") != url.rstrip("/") and full not in out and not re.search(r"\.(css|js|png|jpg|webp)$", pu.path):
+            out.append(full)
+    return out[:maximo]
+
+
+def _alts(page: str, base: str) -> dict:
+    """alt (normalizado) -> src, para emparejar fotos con productos extraídos por texto."""
+    m = {}
+    for tag in re.findall(r"<img\b[^>]*>", page, re.I):
+        alt = re.search(r'\balt=["\']([^"\']{4,120})', tag)
+        src = re.search(r'\b(?:data-src|src)=["\']([^"\']+)', tag)
+        if alt and src and not src.group(1).startswith("data:") and not re.search(r"logo|banner|slide|icon", src.group(1), re.I):
+            m[re.sub(r"\W+", " ", html.unescape(alt.group(1)).lower()).strip()] = urljoin(base, src.group(1))
+    return m
+
+
+def _poner_fotos(prods: list[dict], alts: dict):
+    for p in prods:
+        if p.get("_img"):
+            continue
+        n = re.sub(r"\W+", " ", p["nombre"].lower()).strip()
+        for a, src in alts.items():
+            if n and len(a) >= 10 and (n in a or (a in n and len(a) >= 0.6 * len(n)) or (len(n) >= 30 and n[:30] == a[:30])):
+                p["_img"] = src
+                break
+
+
 async def importar(url: str, servicio: bool, prefijo: str = "imp") -> tuple[list[dict], str]:
     if not re.match(r"^https?://", url):
         url = "https://" + url
@@ -286,10 +328,26 @@ async def importar(url: str, servicio: bool, prefijo: str = "imp") -> tuple[list
         texto = a_texto(page)
         prods = await con_ia(texto, servicio) or []
         origen = "deepseek" if prods else "simulado"
+        alts = _alts(page, url)
+        if len(prods) < 3:  # portada sin productos (los carga JS): recorremos páginas de categoría
+            for cu in _links_categorias(page, url):
+                try:
+                    cp = await descargar(cu)
+                except Exception:
+                    continue
+                alts.update(_alts(cp, cu))
+                nuevos = desde_jsonld(cp) or await con_ia(a_texto(cp), servicio) or []
+                if nuevos:
+                    origen = "deepseek"
+                    vistos = {p["nombre"] for p in prods}
+                    prods += [p for p in nuevos if p["nombre"] not in vistos]
+                if len(prods) >= 60:
+                    break
         if not prods:
             prods = heuristica(texto, servicio)
+        _poner_fotos(prods, alts)
     prods = _filtrar_categoria(prods, url)[:200]
-    if origen == "api":
+    if any(p.get("_img") for p in prods):
         await _bajar_fotos(prods, prefijo)
     return validar({"items": prods}).get("items", []), origen
 
@@ -376,6 +434,10 @@ async def _bajar_imagen(url: str, nombre: str) -> str | None:
                     continue
                 r.raise_for_status()
                 tipo = r.headers.get("content-type", "").split(";")[0].strip().lower()
+                if tipo not in TIPOS:  # servidores que no mandan Content-Type: detectamos por los primeros bytes
+                    b = r.content[:12]
+                    tipo = ("image/png" if b.startswith(b"\x89PNG") else "image/jpeg" if b.startswith(b"\xff\xd8\xff") else
+                            "image/webp" if b[:4] == b"RIFF" and b[8:12] == b"WEBP" else "image/gif" if b.startswith(b"GIF8") else "")
                 if tipo not in TIPOS or len(r.content) > 3_000_000 or len(r.content) < 100:
                     return None
                 MEDIA.mkdir(parents=True, exist_ok=True)

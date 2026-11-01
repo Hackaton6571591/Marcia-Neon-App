@@ -69,3 +69,9 @@ Registro cronológico. Cada acción relevante se agrega acá.
 - **Tienda estilo app de delivery**: barra superior fija con logo, nombre y buscador; categorías fijas que se resaltan al hacer scroll; grilla de productos con foto (2 columnas en celular, 3 en desktop); ficha de producto al tocar (foto grande, descripción, cantidad, agregar); carrito desplegable con edición de cantidades, datos y pago; aviso "agregado". En celular: portada compacta y botón de chat circular.
 - **El chat vende solo**: tarjetas de productos con foto, precio y "+ Agregar" dentro de la conversación (la IA decide cuáles mostrar con `mostrar`; "mostrame imágenes" muestra lo último que se habló). Agregar desde una tarjeta no usa IA. Carrito **sincronizado en los dos sentidos** entre catálogo y chat.
 - **Pruebas visuales con navegador sin pantalla (Chromium/Playwright)** a 390 px y 1366 px: chat cerrado al abrir, ficha, carrito, chat con tarjetas, agregar desde el chat → barra del catálogo actualizada, sin errores de JavaScript.
+- 🐛 **Scraping erróneo en una ferretería real**: la portada carga los productos con JavaScript y la heurística tomó la **dirección de la sucursal** ("Av. Provincias Unidas 136") como producto de $136. Correcciones:
+  - Heurística estricta: descarta direcciones, horarios, teléfonos, cuotas y envíos; exige "$" y al menos 2 productos (si no, no inventa nada).
+  - Si la portada no tiene productos, se recorren **hasta 3 páginas de categoría** del mismo sitio y DeepSeek extrae los productos de cada una.
+  - Fotos emparejadas por el `alt` de las imágenes (se excluyen logos/banners).
+  - Imágenes servidas **sin Content-Type**: el tipo se detecta por los primeros bytes (PNG/JPG/WEBP/GIF).
+  - Resultado: ferretería 65 productos (65 con foto); Tiendanube 17/17; pet shop 23/23.

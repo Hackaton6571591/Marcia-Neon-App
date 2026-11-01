@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
-from . import launcher
+from . import launcher, mercadopago
 from .blueprints import ALIAS_CHIPS, BLUEPRINTS
 
 BASE = Path(__file__).parent
@@ -61,6 +61,9 @@ def init_db():
             estado TEXT DEFAULT 'nuevo', creado INT);
         CREATE INDEX IF NOT EXISTS ix_pedidos_negocio ON pedidos(negocio_id, creado);
         """)
+        cols = [r[1] for r in c.execute("PRAGMA table_info(pedidos)")]
+        if "pago" not in cols:
+            c.execute("ALTER TABLE pedidos ADD COLUMN pago TEXT")
 
 
 # ---------- rate limit simple en memoria ----------
@@ -84,7 +87,7 @@ def limitar(req: Request, por_min: int = 20, bucket: str = "chat"):
 @app.get("/salud")
 def salud():
     ia = "deepseek" if os.getenv("DEEPSEEK_API_KEY") and os.getenv("IA_PROVIDER") != "simulado" else "simulado"
-    return {"ok": True, "ia": ia}
+    return {"ok": True, "ia": ia, "mercadopago": "checkout" if mercadopago.activo() else "manual"}
 
 
 @app.get("/", include_in_schema=False)
@@ -190,7 +193,7 @@ def _negocio(slug):
 @app.get("/n/{slug}", response_class=HTMLResponse)
 def ver_negocio(request: Request, slug: str):
     row, d, bp = _negocio(slug)
-    return tpl.TemplateResponse(request, "negocio.html", {"slug": slug, "d": d, "bp": bp})
+    return tpl.TemplateResponse(request, "negocio.html", {"slug": slug, "d": d, "bp": bp, "pagos": _pagos(d)})
 
 
 class Pedido(BaseModel):
@@ -199,10 +202,11 @@ class Pedido(BaseModel):
     items: dict[int, int] = Field(default_factory=dict)  # índice -> cantidad
     cuando: str = Field("", max_length=40)
     nota: str = Field("", max_length=300)
+    pago: str = Field("efectivo", max_length=20)
 
 
 @app.post("/api/n/{slug}/pedido")
-def crear_pedido(slug: str, p: Pedido, request: Request):
+async def crear_pedido(slug: str, p: Pedido, request: Request):
     limitar(request, 10, "pedido")
     row, d, bp = _negocio(slug)
     detalle, total = [], 0
@@ -215,12 +219,52 @@ def crear_pedido(slug: str, p: Pedido, request: Request):
         raise HTTPException(400, "Elegí al menos un producto o servicio.")
     if bp["modo"] == "turnos" and not p.cuando:
         raise HTTPException(400, "Elegí día y horario para el turno.")
+    pagos = _pagos(d)
+    if p.pago not in pagos:
+        raise HTTPException(400, "Medio de pago no disponible.")
     with db() as c:
-        cur = c.execute("INSERT INTO pedidos(negocio_id,tipo,cliente,contacto,detalle,total,cuando,nota,creado) "
-                        "VALUES(?,?,?,?,?,?,?,?,?)",
+        cur = c.execute("INSERT INTO pedidos(negocio_id,tipo,cliente,contacto,detalle,total,cuando,nota,pago,creado) "
+                        "VALUES(?,?,?,?,?,?,?,?,?,?)",
                         (row["id"], bp["modo"], p.cliente, p.contacto, json.dumps(detalle, ensure_ascii=False),
-                         total, p.cuando, p.nota, int(time.time())))
-    return {"numero": cur.lastrowid, "total": total, "detalle": detalle}
+                         total, p.cuando, p.nota, p.pago, int(time.time())))
+    numero = cur.lastrowid
+    pago_url = None
+    if p.pago == "mercadopago" and mercadopago.activo():
+        base = os.getenv("BASE_URL", "").rstrip("/") or str(request.base_url).rstrip("/").replace("http://", "https://")
+        pago_url = await mercadopago.crear_preferencia(numero, d["nombre"], detalle, base, slug)
+    return {"numero": numero, "total": total, "detalle": detalle, "pago": p.pago,
+            "pago_info": pagos[p.pago], "pago_url": pago_url}
+
+
+@app.post("/api/mp/webhook")
+async def mp_webhook(request: Request):
+    """Notificación de Mercado Pago. Re-consulta el pago a la API antes de marcar nada."""
+    q = dict(request.query_params)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    tipo = q.get("type") or q.get("topic") or body.get("type") or body.get("topic")
+    pid = str(q.get("data.id") or q.get("id") or (body.get("data") or {}).get("id") or "")
+    if tipo == "payment" and pid:
+        status, ref = await mercadopago.consultar_pago(pid)
+        if status == "approved" and ref and ref.isdigit():
+            with db() as c:
+                c.execute("UPDATE pedidos SET estado='pagado' WHERE id=? AND pago='mercadopago'", (int(ref),))
+    return {"ok": True}
+
+
+def _pagos(d: dict) -> dict:
+    """Medios de pago habilitados: {id: dato a mostrar al cliente}. Efectivo por defecto."""
+    cfg = d.get("pagos") or {"efectivo": True}
+    out = {}
+    if cfg.get("efectivo"):
+        out["efectivo"] = ""
+    if cfg.get("mercadopago") or (mercadopago.activo() and cfg.get("mp_checkout")):
+        out["mercadopago"] = cfg.get("mercadopago", "")
+    if cfg.get("transferencia"):
+        out["transferencia"] = cfg["transferencia"]
+    return out or {"efectivo": ""}
 
 
 @app.get("/panel/{slug}", response_class=HTMLResponse)
@@ -231,4 +275,87 @@ def panel(request: Request, slug: str, t: str = ""):
     with db() as c:
         peds = [dict(r) | {"detalle": json.loads(r["detalle"])} for r in
                 c.execute("SELECT * FROM pedidos WHERE negocio_id=? ORDER BY id DESC LIMIT 200", (row["id"],))]
-    return tpl.TemplateResponse(request, "panel.html", {"slug": slug, "d": d, "bp": bp, "pedidos": peds})
+    return tpl.TemplateResponse(request, "panel.html", {"slug": slug, "d": d, "bp": bp, "pedidos": peds,
+                                                         "token": t, "pagos_cfg": d.get("pagos") or {"efectivo": True},
+                                                         "mp_activo": mercadopago.activo()})
+
+
+# ---------- panel: productos, CSV, medios de pago ----------
+
+def _auth(slug, t):
+    row, d, bp = _negocio(slug)
+    if not secrets.compare_digest(t, row["token_admin"]):
+        raise HTTPException(403, "Link de panel inválido")
+    return row, d, bp
+
+
+def _guardar(row_id, d):
+    with db() as c:
+        c.execute("UPDATE negocios SET datos=? WHERE id=?", (json.dumps(d, ensure_ascii=False), row_id))
+
+
+class Items(BaseModel):
+    items: list[dict] = Field(default_factory=list, max_length=200)
+
+
+@app.put("/api/panel/{slug}/items")
+def guardar_items(slug: str, body: Items, t: str = ""):
+    row, d, bp = _auth(slug, t)
+    items = launcher.validar({"items": body.items}).get("items", []) if body.items else []
+    if not items:
+        raise HTTPException(400, "Cargá al menos un producto con nombre y precio.")
+    d["items"] = items
+    _guardar(row["id"], d)
+    return {"items": items}
+
+
+@app.post("/api/panel/{slug}/csv")
+async def importar_csv(slug: str, request: Request, t: str = "", reemplazar: bool = False):
+    import csv
+    import io
+    row, d, bp = _auth(slug, t)
+    raw = (await request.body())[:200_000].decode("utf-8-sig", errors="replace")
+    if not raw.strip():
+        raise HTTPException(400, "El archivo está vacío.")
+    try:
+        dialect = csv.Sniffer().sniff(raw[:2000], delimiters=",;\t")
+    except csv.Error:
+        dialect = csv.excel
+    filas = list(csv.reader(io.StringIO(raw), dialect))
+    cab = [h.strip().lower() for h in filas[0]] if filas else []
+    idx = lambda *ns: next((cab.index(n) for n in ns if n in cab), None)
+    i_n, i_p, i_d = idx("nombre", "producto", "servicio", "name"), idx("precio", "price", "valor"), idx("duracion", "duracion_min", "minutos")
+    if i_n is None or i_p is None:  # sin encabezado: columna 1 nombre, 2 precio
+        i_n, i_p, i_d, datos = 0, 1, 2 if bp["modo"] == "turnos" else None, filas
+    else:
+        datos = filas[1:]
+    nuevos = []
+    for f in datos:
+        if len(f) <= max(i_n, i_p):
+            continue
+        it = {"nombre": f[i_n], "precio": re.sub(r"[^\d]", "", f[i_p].split(",")[0])}
+        if i_d is not None and len(f) > i_d and re.sub(r"\D", "", f[i_d]):
+            it["duracion_min"] = re.sub(r"\D", "", f[i_d])
+        nuevos.append(it)
+    nuevos = launcher.validar({"items": nuevos}).get("items", [])
+    if not nuevos:
+        raise HTTPException(400, "No encontré productos válidos. Formato: nombre,precio")
+    d["items"] = (nuevos if reemplazar else (d.get("items", []) + nuevos))[:200]
+    _guardar(row["id"], d)
+    return {"importados": len(nuevos), "items": d["items"]}
+
+
+class Pagos(BaseModel):
+    efectivo: bool = True
+    mercadopago: str = Field("", max_length=120)
+    transferencia: str = Field("", max_length=120)
+
+
+@app.put("/api/panel/{slug}/pagos")
+def guardar_pagos(slug: str, p: Pagos, t: str = ""):
+    row, d, bp = _auth(slug, t)
+    if not (p.efectivo or p.mercadopago.strip() or p.transferencia.strip()):
+        raise HTTPException(400, "Dejá al menos un medio de pago activo.")
+    d["pagos"] = {"efectivo": p.efectivo, "mercadopago": p.mercadopago.strip(), "transferencia": p.transferencia.strip()}
+    _guardar(row["id"], d)
+    return d["pagos"]

@@ -1,44 +1,156 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Panel · {{ d.nombre }}</title><meta name="robots" content="noindex">
-<meta http-equiv="refresh" content="20">
 <link rel="stylesheet" href="/static/marcia.css">
 <style>
 .wrap{max-width:1000px;margin:0 auto;padding:20px 16px 60px}
 h1{margin:6px 0 4px;letter-spacing:-.02em}
-.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:20px 0}
+.tabs{display:flex;gap:8px;margin:20px 0;flex-wrap:wrap}
+.tabs button.on{background:var(--grad);color:#0b0716;border-color:transparent}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
 .kpi{padding:16px}.kpi b{display:block;font-size:1.6rem}
 .ped{padding:16px;margin-bottom:12px;display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:start}
 .num{font-weight:900;font-size:1.1rem;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
 .det{color:var(--muted);font-size:.9rem}
 .when{color:var(--lime);font-weight:700;font-size:.9rem}
 .empty{padding:40px;text-align:center;color:var(--muted)}
-@media(max-width:600px){.kpis{grid-template-columns:1fr 1fr}.ped{grid-template-columns:1fr}}
+.box{padding:18px;margin-bottom:16px}
+.box h3{margin:0 0 4px}
+.irow{display:grid;grid-template-columns:1fr 130px {% if bp.modo == 'turnos' %}100px {% endif %}40px;gap:8px;margin-bottom:8px}
+.irow button{border:1px solid var(--line);background:#1a1530;color:#ff8fab;border-radius:10px;cursor:pointer}
+.acts{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:center}
+.msg{font-size:.9rem;min-height:1.2em}
+.msg.ok{color:var(--lime)}.msg.err{color:#ff8fab}
+.pay{display:grid;gap:12px}
+.pay label{display:grid;gap:6px}
+.chk{display:flex!important;align-items:center;gap:10px;grid-template-columns:none}
+.chk input{width:20px;height:20px}
+code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(--line)}
+.soon{opacity:.6}
+[hidden]{display:none!important}
+@media(max-width:600px){.kpis{grid-template-columns:1fr 1fr}.ped{grid-template-columns:1fr}.irow{grid-template-columns:1fr 100px 40px}.irow .dur{display:none}}
 </style></head><body>
-<div class="top"><a class="logo" href="/">Marcia <span class="grad">Neon</span></a><a class="btn btn-ghost" href="/n/{{ slug }}" target="_blank">Ver mi página ↗</a></div>
+<div class="top"><a class="logo" href="/">Marcia <span class="grad">Neon</span></a><a class="btn btn-ghost" href="/n/{{ slug }}" target="_blank">Ver mi tienda ↗</a></div>
 <div class="wrap">
-  <span class="tag"><i></i>Panel privado · se actualiza solo</span>
+  <span class="tag"><i></i>Panel privado de tu negocio</span>
   <h1>{{ d.nombre }}</h1>
-  <div class="muted">{{ bp.emoji }} {{ 'Turnos' if bp.modo == 'turnos' else 'Pedidos' }} recibidos</div>
-  {% set total = pedidos|sum(attribute='total') %}
-  <div class="kpis">
-    <div class="kpi card"><span class="muted">{{ 'Turnos' if bp.modo == 'turnos' else 'Pedidos' }}</span><b>{{ pedidos|length }}</b></div>
-    <div class="kpi card"><span class="muted">Facturación</span><b class="price">${{ "{:,}".format(total).replace(",", ".") }}</b></div>
-    <div class="kpi card"><span class="muted">Perdidos</span><b style="color:var(--lime)">0 🎯</b></div>
+  <div class="muted">{{ bp.emoji }} {{ d.rubro_texto or bp.nombre }} · tu link público: <a href="/n/{{ slug }}" target="_blank">/n/{{ slug }}</a></div>
+
+  <div class="tabs">
+    <button class="btn btn-ghost on" data-tab="pedidos">📥 {{ 'Turnos' if bp.modo == 'turnos' else 'Pedidos' }}</button>
+    <button class="btn btn-ghost" data-tab="productos">🛒 {{ 'Servicios' if bp.modo == 'turnos' else 'Productos' }}</button>
+    <button class="btn btn-ghost" data-tab="pagos">💳 Medios de pago</button>
+    <button class="btn btn-ghost" data-tab="integraciones">🔌 Integraciones</button>
   </div>
-  {% for p in pedidos %}
-  <div class="ped card">
-    <div class="num">#{{ p.id }}</div>
-    <div>
-      <b>{{ p.cliente }}</b>{% if p.contacto %} <span class="muted">· {{ p.contacto }}</span>{% endif %}
-      {% if p.cuando %}<div class="when">📅 {{ p.cuando }}</div>{% endif %}
-      <div class="det">{% for x in p.detalle %}{{ x.cantidad }}× {{ x.nombre }}{% if not loop.last %} · {% endif %}{% endfor %}</div>
-      {% if p.nota %}<div class="det">📝 {{ p.nota }}</div>{% endif %}
+
+  <section data-sec="pedidos">
+    {% set total = pedidos|sum(attribute='total') %}
+    <div class="kpis">
+      <div class="kpi card"><span class="muted">{{ 'Turnos' if bp.modo == 'turnos' else 'Pedidos' }}</span><b>{{ pedidos|length }}</b></div>
+      <div class="kpi card"><span class="muted">Facturación</span><b class="price">${{ "{:,}".format(total).replace(",", ".") }}</b></div>
+      <div class="kpi card"><span class="muted">Perdidos</span><b style="color:var(--lime)">0 🎯</b></div>
     </div>
-    <div class="price">${{ "{:,}".format(p.total).replace(",", ".") }}</div>
-  </div>
-  {% else %}
-  <div class="empty card">Todavía no hay {{ 'turnos' if bp.modo == 'turnos' else 'pedidos' }}. Compartí tu link: <a href="/n/{{ slug }}">/n/{{ slug }}</a></div>
-  {% endfor %}
+    <div class="acts" style="margin:0 0 14px"><button class="btn btn-ghost" onclick="location.reload()">🔄 Actualizar</button></div>
+    {% for p in pedidos %}
+    <div class="ped card">
+      <div class="num">#{{ p.id }}</div>
+      <div>
+        <b>{{ p.cliente }}</b>{% if p.contacto %} <span class="muted">· {{ p.contacto }}</span>{% endif %}
+        {% if p.cuando %}<div class="when">📅 {{ p.cuando }}</div>{% endif %}
+        <div class="det">{% for x in p.detalle %}{{ x.cantidad }}× {{ x.nombre }}{% if not loop.last %} · {% endif %}{% endfor %}</div>
+        {% if p.nota %}<div class="det">📝 {{ p.nota }}</div>{% endif %}
+        {% if p.pago %}<div class="det">💳 {{ {'efectivo':'Efectivo','mercadopago':'Mercado Pago','transferencia':'Transferencia'}.get(p.pago, p.pago) }}{% if p.estado == 'pagado' %} <b style="color:var(--lime)">· ✓ PAGADO</b>{% endif %}</div>{% endif %}
+      </div>
+      <div class="price">${{ "{:,}".format(p.total).replace(",", ".") }}</div>
+    </div>
+    {% else %}
+    <div class="empty card">Todavía no hay {{ 'turnos' if bp.modo == 'turnos' else 'pedidos' }}. Compartí tu link: <a href="/n/{{ slug }}">/n/{{ slug }}</a></div>
+    {% endfor %}
+  </section>
+
+  <section data-sec="productos" hidden>
+    <div class="box card">
+      <h3>Cargar a mano</h3>
+      <p class="muted" style="margin-top:0">Nombre y precio{% if bp.modo == 'turnos' %} y duración en minutos{% endif %}. Los cambios se ven al instante en tu tienda.</p>
+      <div id="items"></div>
+      <div class="acts">
+        <button class="btn btn-ghost" id="addRow">+ Agregar</button>
+        <button class="btn btn-neon" id="saveItems">Guardar cambios</button>
+        <span class="msg" id="itemsMsg"></span>
+      </div>
+    </div>
+    <div class="box card">
+      <h3>Importar desde CSV / Excel</h3>
+      <p class="muted" style="margin-top:0">Exportá tu planilla como CSV con columnas <code>nombre,precio{% if bp.modo == 'turnos' %},duracion{% endif %}</code>. Acepta coma, punto y coma o tabulación.</p>
+      <input type="file" id="csv" accept=".csv,.txt,text/csv">
+      <div class="acts">
+        <label class="chk muted"><input type="checkbox" id="reemplazar"> Reemplazar los actuales</label>
+        <button class="btn btn-neon" id="upCsv">Importar</button>
+        <span class="msg" id="csvMsg"></span>
+      </div>
+    </div>
+    <div class="box card soon">
+      <h3>Copiar menú desde una URL <span class="tag">Próximamente</span></h3>
+      <p class="muted" style="margin:0">Pegá el link de tu menú actual (web, PedidosYa, Instagram) y Marcia lo carga con IA.</p>
+    </div>
+  </section>
+
+  <section data-sec="pagos" hidden>
+    <div class="box card pay">
+      <h3>¿Cómo te pueden pagar?</h3>
+      <label class="chk"><input type="checkbox" id="pEf" {% if pagos_cfg.efectivo %}checked{% endif %}> 💵 Efectivo (al recibir / en el local)</label>
+      <label>🔵 Mercado Pago: link de pago o alias
+        <input id="pMp" maxlength="120" placeholder="ej: link.mercadopago.com.ar/donluigi o alias donluigi.mp" value="{{ pagos_cfg.mercadopago or '' }}"></label>
+      <label>🏦 Transferencia: alias o CBU
+        <input id="pTr" maxlength="120" placeholder="ej: don.luigi.pizza" value="{{ pagos_cfg.transferencia or '' }}"></label>
+      <div class="acts"><button class="btn btn-neon" id="savePay">Guardar</button><span class="msg" id="payMsg"></span></div>
+      <p class="muted" style="margin:0;font-size:.85rem">{% if mp_activo %}✅ Cobro automático con Mercado Pago Checkout activo: el cliente paga online y el pedido se marca como pagado solo.{% else %}Modo manual: el cliente ve tu link o alias. El cobro automático (Checkout Pro) se activa cargando las credenciales de Mercado Pago en el servidor.{% endif %}</p>
+    </div>
+  </section>
+
+  <section data-sec="integraciones" hidden>
+    <div class="box card soon"><h3>💬 WhatsApp Business API <span class="tag">Próximamente</span></h3><p class="muted" style="margin:0">Marcia responde y toma pedidos directo en tu WhatsApp, y te avisa de cada pedido nuevo.</p></div>
+    <div class="box card soon"><h3>🤖 Chatbot de pedidos en tu tienda <span class="tag">Próximamente</span></h3><p class="muted" style="margin:0">Tus clientes piden conversando: "mandame 2 porciones de muzza, ¿qué empanadas tenés?". Con DeepSeek, Claude o ChatGPT.</p></div>
+    <div class="box card soon"><h3>🔵 Mercado Pago Checkout <span class="tag">Próximamente</span></h3><p class="muted" style="margin:0">Cobro online con confirmación automática del pago en el pedido.</p></div>
+  </section>
 </div>
+<script>
+(()=>{
+const T={{ token|tojson }}, SLUG={{ slug|tojson }}, TURNOS={{ (bp.modo == 'turnos')|tojson }};
+let items={{ d['items']|tojson }};
+const $=s=>document.querySelector(s);
+const api=(p,opt={})=>fetch(`/api/panel/${SLUG}/${p}${p.includes('?')?'&':'?'}t=${encodeURIComponent(T)}`,opt).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(typeof j.detail==='string'?j.detail:'Error');return j});
+const msg=(el,txt,ok)=>{el.textContent=txt;el.className='msg '+(ok?'ok':'err')};
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('[data-sec]').forEach(s=>s.hidden=s.dataset.sec!==b.dataset.tab);
+});
+function renderItems(){
+  const box=$('#items');box.innerHTML='';
+  items.forEach((it,i)=>{
+    const r=document.createElement('div');r.className='irow';
+    r.innerHTML=`<input placeholder="Nombre" maxlength="60"><input type="number" min="1" placeholder="Precio $">${TURNOS?'<input class="dur" type="number" min="5" placeholder="Min">':''}<button title="Borrar">✕</button>`;
+    const [n,p,d]=r.querySelectorAll('input');n.value=it.nombre||'';p.value=it.precio||'';if(d)d.value=it.duracion_min||30;
+    n.oninput=()=>it.nombre=n.value;p.oninput=()=>it.precio=+p.value;if(d)d.oninput=()=>it.duracion_min=+d.value;
+    r.querySelector('button').onclick=()=>{items.splice(i,1);renderItems()};
+    box.appendChild(r);
+  });
+}
+renderItems();
+$('#addRow').onclick=()=>{items.push({nombre:'',precio:'',...(TURNOS?{duracion_min:30}:{})});renderItems();$('#items').lastChild.querySelector('input').focus()};
+$('#saveItems').onclick=async()=>{
+  try{const j=await api('items',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:items.filter(i=>i.nombre&&i.precio)})});
+    items=j.items;renderItems();msg($('#itemsMsg'),`✓ Guardado (${items.length})`,1)}catch(e){msg($('#itemsMsg'),e.message)}
+};
+$('#upCsv').onclick=async()=>{
+  const f=$('#csv').files[0];if(!f){msg($('#csvMsg'),'Elegí un archivo');return}
+  try{const j=await api('csv'+($('#reemplazar').checked?'?reemplazar=true':''),{method:'POST',headers:{'Content-Type':'text/csv'},body:await f.text()});
+    items=j.items;renderItems();msg($('#csvMsg'),`✓ ${j.importados} importados`,1)}catch(e){msg($('#csvMsg'),e.message)}
+};
+$('#savePay').onclick=async()=>{
+  try{await api('pagos',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({efectivo:$('#pEf').checked,mercadopago:$('#pMp').value,transferencia:$('#pTr').value})});
+    msg($('#payMsg'),'✓ Guardado',1)}catch(e){msg($('#payMsg'),e.message)}
+};
+})();
+</script>
 </body></html>

@@ -32,3 +32,7 @@ Registro cronológico. Cada acción relevante se agrega acá.
 - Se creó `.env` (600) con `IA_PROVIDER=deepseek` y clave vacía → funciona en modo demo hasta cargar la key.
 - Pruebas de punta a punta OK para restaurante y peluquería. Se corrigió: límites por endpoint, IP real desde el último `X-Forwarded-For`, texto de Marcia.
 - DNS de `dwday-38964763.online` sigue sin zona (SERVFAIL). Detalle en `launcher.md`.
+- ⚠️ El commit `6adcb45` incluyó por error `data/marcia.db-wal` y `-shm` (datos de prueba con tokens de panel). Se sacaron del repo en `d26463a`, se agregaron al `.gitignore` y se borraron los negocios de prueba (los tokens quedaron inválidos). **Antes de hacer público el repo**, conviene limpiar esos archivos del historial.
+- El equipo definió la **visión del producto** (ecommerce simplificado + CRM + chatbot de pedidos + WhatsApp API): `vision-producto.md`.
+- Panel con pestañas: carga manual de productos, **importación CSV**, **medios de pago** (efectivo, Mercado Pago, transferencia), integraciones (próximamente). La tienda permite elegir medio de pago.
+- **Mercado Pago Checkout Pro** implementado en `app/mercadopago.py` (preferencia + webhook que re-consulta el pago). Se activa con `MERCADOPAGO_ACCESS_TOKEN` en `.env`; para la hackatón queda en modo manual (decisión del equipo).

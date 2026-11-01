@@ -58,7 +58,20 @@ El **total del pedido se calcula en el servidor** con los precios guardados: el 
 - Restaurante: 5 mensajes → revisión → publicar `/n/don-luigi` → pedido #1 (total $25.500 calculado en servidor) → visible en panel; panel con token inválido → 403.
 - Peluquería: 5 mensajes → publicar `/n/estilo-neon` → turno #2 con fecha; turno sin fecha → 400.
 
+## Panel del negocio (agregado)
+Pestañas: **Pedidos** (KPIs, medio de pago, estado pagado) · **Productos** (edición manual, importación CSV, "copiar desde URL" próximamente) · **Medios de pago** (efectivo, Mercado Pago link/alias, transferencia) · **Integraciones** (WhatsApp, chatbot, MP Checkout: próximamente).
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| PUT | `/api/panel/{slug}/items?t=` | reemplaza productos/servicios (validados) |
+| POST | `/api/panel/{slug}/csv?t=[&reemplazar=true]` | cuerpo = CSV. Columnas `nombre,precio[,duracion]` |
+| PUT | `/api/panel/{slug}/pagos?t=` | `{efectivo, mercadopago, transferencia}` |
+| POST | `/api/mp/webhook` | notificaciones de Mercado Pago (ver `vision-producto.md`) |
+
+El cliente elige el medio de pago en la tienda; el servidor valida que esté habilitado. Probado: CSV con `;` y encabezado (3), CSV sin encabezado (1), edición manual, pagos, token inválido → 403, pago no habilitado → 400.
+
 ## Pendiente / siguiente
 - Probar con la API key real de DeepSeek.
 - Streaming SSE de la respuesta (hoy la respuesta llega completa).
 - Cambiar estado de pedidos desde el panel; WhatsApp; avatar.
+- Ver roadmap completo en [vision-producto.md](vision-producto.md).

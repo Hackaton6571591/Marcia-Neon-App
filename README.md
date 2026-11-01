@@ -24,6 +24,7 @@ Python 3.12 · FastAPI · SQLite (WAL) · HTML/CSS/JS nativo · Caddy · systemd
 - [docs/idea-y-evaluacion.md](docs/idea-y-evaluacion.md): evaluación de la idea, alcance del MVP y riesgos.
 - [docs/servidor.md](docs/servidor.md): server, usuario y entorno.
 - [docs/bitacora.md](docs/bitacora.md): registro cronológico de todo lo que se hace.
+- [docs/vision-producto.md](docs/vision-producto.md): visión del producto (ecommerce + CRM + chatbot + WhatsApp) y estado por funcionalidad.
 - [docs/launcher.md](docs/launcher.md): implementación del launcher, IA, API y pruebas.
 - [docs/deploy.md](docs/deploy.md): Caddy, servicio, URLs y cómo vincular el dominio.
 
@@ -35,7 +36,8 @@ Python 3.12 · FastAPI · SQLite (WAL) · HTML/CSS/JS nativo · Caddy · systemd
 - ✅ Landing pública.
 - ✅ Launcher (`/crear`): chat con Marcia + vista previa en vivo + publicar.
 - ✅ Página pública del negocio (`/n/{slug}`): pedidos o turnos.
-- ✅ Panel privado del negocio (`/panel/{slug}?t=…`).
+- ✅ Panel privado del negocio (`/panel/{slug}?t=…`): pedidos, productos (manual + CSV), medios de pago.
+- ✅ Mercado Pago Checkout Pro listo para activar con el access token (modo manual en la hackatón).
 - ⏳ IA real: DeepSeek integrado, falta cargar la API key (mientras tanto, modo demo).
 
 ## Demo rápida

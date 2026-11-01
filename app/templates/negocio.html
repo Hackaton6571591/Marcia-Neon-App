@@ -22,6 +22,11 @@ h2{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cy
 .err{color:#ff8fab;font-size:.9rem;min-height:1.2em}
 .foot{text-align:center;color:var(--muted);font-size:.8rem;margin-top:30px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pagos{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.pagos>div{width:100%}
+.op{display:flex;align-items:center;gap:8px;padding:9px 14px;border:1px solid var(--line);border-radius:999px;background:#0d0b1a;cursor:pointer}
+.op:has(input:checked){border-color:var(--cyan);box-shadow:0 0 16px -6px var(--cyan)}
+.op input{width:auto;accent-color:#00e5ff}
+.payinfo{margin:14px auto;max-width:360px;padding:12px;border-radius:14px;border:1px solid rgba(0,229,255,.35);background:rgba(0,229,255,.06);word-break:break-all}
 </style></head><body>
 <div class="wrap" id="app">
   <div class="hero">
@@ -49,6 +54,13 @@ h2{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cy
     <div class="grid2"><input type="date" name="dia" required><input type="time" name="hora" required step="900"></div>
     {% endif %}
     <textarea name="nota" maxlength="300" rows="2" placeholder="{{ 'Algo que debamos saber (opcional)' if bp.modo == 'turnos' else 'Dirección de entrega, aclaraciones: sin cebolla, etc.' }}"></textarea>
+    <div class="pagos">
+      <div class="muted" style="font-size:.85rem;margin-bottom:6px">¿Cómo pagás?</div>
+      {% set nombres = {'efectivo':'💵 Efectivo','mercadopago':'🔵 Mercado Pago','transferencia':'🏦 Transferencia'} %}
+      {% for k in pagos %}
+      <label class="op"><input type="radio" name="pago" value="{{ k }}" {% if loop.first %}checked{% endif %}> {{ nombres[k] }}</label>
+      {% endfor %}
+    </div>
     <div class="err" id="err"></div>
   </form>
   <div class="foot">Hecho con 💜 en <a href="/">Marcia Neon</a></div>
@@ -58,6 +70,8 @@ h2{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cy
 <script>
 (()=>{
 const sel={}, $=s=>document.querySelector(s), fmt=n=>'$'+Number(n).toLocaleString('es-AR');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const linkOr=v=>{const u=/^https?:\/\//.test(v)?v:(/^[\w.-]+\.[a-z]{2,}\//i.test(v)?'https://'+v:null);return u?`<a href="${esc(u)}" target="_blank" rel="noopener">${esc(v)}</a>`:esc(v)};
 const turnos={{ (bp.modo == 'turnos')|tojson }};
 function upd(){let t=0,c=0;document.querySelectorAll('.qty').forEach(q=>{const n=sel[q.dataset.i]||0;q.querySelector('span').textContent=n;t+=n*q.dataset.p;c+=n});$('#tot').textContent=fmt(t);$('#go').disabled=!c}
 document.querySelectorAll('.qty').forEach(q=>{
@@ -68,17 +82,18 @@ if(turnos){const d=document.querySelector('[name=dia]');if(d)d.min=new Date().to
 $('#go').onclick=async()=>{
   const f=$('#f'); if(!f.reportValidity())return;
   const items={};for(const k in sel)if(sel[k]>0)items[k]=sel[k];
-  const body={cliente:f.cliente.value,contacto:f.contacto.value,nota:f.nota.value,items,cuando:turnos?`${f.dia.value} ${f.hora.value}`:''};
+  const body={cliente:f.cliente.value,contacto:f.contacto.value,nota:f.nota.value,items,cuando:turnos?`${f.dia.value} ${f.hora.value}`:'',pago:(f.querySelector('[name=pago]:checked')||{}).value||'efectivo'};
   $('#go').disabled=true;$('#err').textContent='';
   try{
     const r=await fetch('/api/n/{{ slug }}/pedido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const j=await r.json();
+    if(r.ok&&j.pago_url){location.href=j.pago_url;return}
     if(!r.ok){$('#err').textContent=typeof j.detail==='string'?j.detail:'Revisá los datos';$('#go').disabled=false;return}
-    const det=j.detail||j.detalle;
     $('#app').innerHTML=`<div class="ok card"><div class="big">✅</div><h1>${turnos?'¡Turno reservado!':'¡Pedido confirmado!'}</h1>
       <p class="muted">${turnos?'Reserva':'Pedido'} #${j.numero}${turnos?' para el '+body.cuando.replace(' ',' a las '):''}</p>
-      <div style="text-align:left;max-width:360px;margin:16px auto">${j.detalle.map(x=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--line)"><span>${x.cantidad}× ${x.nombre.replace(/[<>&]/g,'')}</span><span class="price">${fmt(x.precio*x.cantidad)}</span></div>`).join('')}
+      <div style="text-align:left;max-width:360px;margin:16px auto">${j.detalle.map(x=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--line)"><span>${x.cantidad}× ${esc(x.nombre)}</span><span class="price">${fmt(x.precio*x.cantidad)}</span></div>`).join('')}
       <div style="display:flex;justify-content:space-between;padding-top:8px;font-weight:800"><span>Total</span><span>${fmt(j.total)}</span></div></div>
+      ${j.pago==='mercadopago'?`<div class="payinfo">🔵 Pagá con Mercado Pago:<br><b>${linkOr(j.pago_info)}</b></div>`:j.pago==='transferencia'?`<div class="payinfo">🏦 Transferí a:<br><b>${esc(j.pago_info)}</b><br><span class="muted">y mandá el comprobante al negocio</span></div>`:`<p class="muted">💵 Pagás en efectivo ${turnos?'en el local':'al recibir'}.</p>`}
       <p class="muted">El negocio ya lo tiene en su panel. ¡Gracias!</p><a class="btn btn-ghost" href="">Hacer otro</a></div>`;
     document.querySelector('.bar').remove();
   }catch(e){$('#err').textContent='Sin conexión, probá de nuevo.';$('#go').disabled=false}

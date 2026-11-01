@@ -870,6 +870,29 @@ async def panel_foto_menu(slug: str, request: Request, t: str = "", reemplazar: 
     return {"importados": len(items), "items": d["items"]}
 
 
+@app.get("/api/panel/{slug}/exportar")
+def exportar_menu(slug: str, t: str = "", formato: str = Query("csv", pattern="^(csv|json)$")):
+    """Menú exportable para cargar en PedidosYa / Uber Eats / Rappi u otros sistemas."""
+    import csv
+    import io
+    from fastapi.responses import Response
+    row, d, bp = _auth(slug, t)
+    base = os.getenv("BASE_URL", "").rstrip("/")
+    filas = [{"nombre": it["nombre"], "precio": it["precio"], "categoria": it.get("categoria", ""),
+              "descripcion": it.get("descripcion", ""), "stock": "" if it.get("stock") is None else it["stock"],
+              "imagen": (base + it["imagen"]) if it.get("imagen") else ""} for it in d["items"]]
+    nombre = f"menu-{slug}"
+    if formato == "json":
+        return Response(json.dumps({"negocio": d["nombre"], "productos": filas}, ensure_ascii=False, indent=2),
+                        media_type="application/json", headers={"Content-Disposition": f'attachment; filename="{nombre}.json"'})
+    buf = io.StringIO()
+    w = csv.DictWriter(buf, fieldnames=list(filas[0].keys()) if filas else ["nombre", "precio"])
+    w.writeheader()
+    w.writerows(filas)
+    return Response("\ufeff" + buf.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{nombre}.csv"'})
+
+
 class ImportarURL(BaseModel):
     url: str = Field(..., min_length=4, max_length=500)
     reemplazar: bool = False

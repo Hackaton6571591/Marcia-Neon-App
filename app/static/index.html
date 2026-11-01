@@ -162,6 +162,24 @@ footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
   .feats,.vs{grid-template-columns:1fr}
   nav .links{display:none}
 }
+@media (max-width:600px){
+  /* rendimiento: sin desenfoques gigantes ni blur de fondo (caros en la GPU del celular) */
+  .bgfx::before,.bgfx::after{display:none}
+  .bgfx{background:radial-gradient(120% 60% at 0% 0%,rgba(255,61,203,.22),transparent 60%),radial-gradient(120% 60% at 100% 100%,rgba(0,229,255,.16),transparent 60%)}
+  .grid-lines{display:none}
+  nav{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(7,6,15,.96)}
+  .no-mobile,.phone-wrap{display:none!important}
+  .reveal{opacity:1;transform:none;transition:none}
+  h1{font-size:2.3rem;margin:14px 0 12px}
+  .lead{font-size:1.02rem;margin-bottom:20px}
+  section{padding-block:48px}
+  .head{margin-bottom:24px}
+  .cards{gap:12px}.card{padding:18px}.card .ic{width:40px;height:40px;margin-bottom:10px}
+  .card p{font-size:.92rem}
+  .steps{gap:12px}.step{padding:18px}.step::before{font-size:2.4rem;margin-bottom:6px}
+  .rubros{grid-template-columns:1fr 1fr!important;gap:10px}.rubro{padding:16px}.rubro p{display:none}.rubro .e{font-size:1.6rem}.rubro h3{font-size:.95rem;margin:6px 0 0}
+  .rubro .go{margin-top:8px}
+}
 @media (max-width:520px){
   .hero{padding-top:36px}
   nav .btn{padding:9px 14px;font-size:.88rem}
@@ -204,7 +222,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
     <div>
       <span class="pill"><i></i>Asistente con IA para negocios locales</span>
       <h1>Ningún pedido<br>más <span class="grad">perdido en WhatsApp.</span></h1>
-      <p class="lead">Contale a <strong>Marcia</strong> qué rubro sos. En minutos te arma un asistente que <strong>toma pedidos, da turnos y responde consultas</strong> mientras vos atendés tu negocio.</p>
+      <p class="lead">Contale a <strong>Marcia</strong> qué rubro sos, pegá tu web o sacale una <strong>foto a tu menú</strong>. En 2 minutos tenés tienda online + un <strong>vendedor con IA</strong> que toma pedidos y turnos 24/7.</p>
 
       <div class="ask">
         <form data-ask>
@@ -219,10 +237,10 @@ footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
         <button class="chip" data-rubro="ferreteria">🔧 Ferretería</button>
         <button class="chip" data-rubro="otro">✨ Otro</button>
       </div>
-      <div class="trust"><span>Sin tarjeta</span><span>Listo en minutos</span><span>Sin saber de tecnología</span></div>
+      <div class="trust"><span>Gratis para probar</span><span>Listo en 2 minutos</span><span>Vendedor con IA incluido</span></div>
     </div>
 
-    <div style="position:relative;justify-self:center;width:min(360px,100%)">
+    <div class="phone-wrap" style="position:relative;justify-self:center;width:min(360px,100%)">
       <div class="phone" aria-hidden="true">
         <div class="screen">
           <div class="chat-head">
@@ -250,7 +268,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
       <div class="card pain reveal"><div class="ic">📝</div><h3>Pedidos mal anotados</h3><p>"Era sin cebolla." Un papel, un audio, una captura… y el pedido llega mal.</p></div>
       <div class="card pain reveal"><div class="ic">⏳</div><h3>Clientes que esperan y se van</h3><p>Si tardás 20 minutos en contestar, ya le compraron a otro. Atender y responder a la vez no se puede.</p></div>
     </div>
-    <div class="vs reveal">
+    <div class="vs reveal no-mobile">
       <div class="before"><h3>Hoy, a mano</h3><ul><li>Respondés cuando podés</li><li>Pedidos en papelitos y capturas</li><li>Turnos que se pisan</li><li>Fuera de horario, nadie atiende</li></ul></div>
       <div class="after"><h3>Con Marcia</h3><ul><li>Respuesta al instante, 24/7</li><li>Cada pedido ordenado y confirmado</li><li>Agenda de turnos sin superposiciones</li><li>Vos ves todo en un solo panel</li></ul></div>
     </div>
@@ -265,8 +283,8 @@ footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
       <p class="sub">Sin formularios eternos ni configuraciones raras. Marcia te pregunta y arma todo por vos.</p>
     </div>
     <div class="steps">
-      <div class="step reveal"><h3>Contale tu negocio</h3><p>Qué vendés, cómo te llegan los pedidos y qué te complica. Como si hablaras con alguien de confianza.</p></div>
-      <div class="step reveal"><h3>La IA arma tu solución</h3><p>Catálogo, servicios, horarios y asistente. Lo ves armarse en vivo y corregís lo que quieras.</p></div>
+      <div class="step reveal"><h3>Contale tu negocio</h3><p>Charlando, o pegá el link de tu web o una foto de tu menú: Marcia copia productos, precios y fotos.</p></div>
+      <div class="step reveal"><h3>La IA arma tu solución</h3><p>Tienda, turnos y un vendedor virtual que atiende y toma pedidos. Lo ves armarse en vivo.</p></div>
       <div class="step reveal"><h3>Publicás y listo</h3><p>Compartís tu link y Marcia empieza a atender. Pedidos y turnos llegan ordenados a tu panel.</p></div>
     </div>
   </div>
@@ -288,7 +306,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
   </div>
 </section>
 
-<section>
+<section class="no-mobile">
   <div class="wrap">
     <div class="head center reveal">
       <span class="kicker">Todo incluido</span>

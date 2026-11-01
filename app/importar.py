@@ -469,6 +469,21 @@ async def _bajar_imagen(url: str, nombre: str) -> str | None:
     return None
 
 
+def logo_claro(ruta: str) -> bool:
+    """True si el logo es claro (ej. blanco sobre transparente): se muestra sobre fondo oscuro."""
+    try:
+        from PIL import Image
+        f = MEDIA / ruta.rsplit("/", 1)[-1]
+        im = Image.open(f).convert("RGBA").resize((64, 64))
+        px = [(r, g, b) for r, g, b, a in im.getdata() if a > 40]
+        if not px:
+            return False
+        lum = sum(0.299 * r + 0.587 * g + 0.114 * b for r, g, b in px) / len(px)
+        return lum > 200
+    except Exception:
+        return False
+
+
 async def extraer_marca(url: str, prefijo: str) -> dict:
     """Lee la web o el perfil de Instagram y guarda logo + imagen de portada. Devuelve lo que encontró."""
     if not re.match(r"^https?://", url):
@@ -499,6 +514,7 @@ async def extraer_marca(url: str, prefijo: str) -> dict:
         for cand in (m.get("logo"), m.get("icono")):  # el logo real primero; el ícono solo de respaldo
             if cand and (logo := await _bajar_imagen(cand, prefijo + "-logo")):
                 out["logo"] = logo
+                out["logo_claro"] = logo_claro(logo)
                 break
         if m.get("imagen") and (portada := await _bajar_imagen(m["imagen"], prefijo + "-portada")):
             out["portada"] = portada

@@ -53,6 +53,7 @@ h2{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cy
 .tb-in{max-width:760px;margin:0 auto;display:flex;align-items:center;gap:10px;padding:8px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px));height:56px}
 .tb-logo{height:36px;width:auto;max-width:90px;border-radius:9px;object-fit:contain;background:#fff;padding:3px}
 .tb .ava{width:34px;height:34px}
+.tb-logo.dark,.logo-img.dark{background:#1d1a33!important}
 .tb-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:1rem}
 .tb-btn{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:1rem;cursor:pointer}
 .tb-search{max-width:760px;margin:0 auto;padding:0 16px 10px}
@@ -172,7 +173,7 @@ h2{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cy
 {% set con_fotos = d['items']|selectattr('imagen')|list|length > 0 %}
 <header class="tb">
   <div class="tb-in">
-    {% if d.logo %}<img class="tb-logo" src="{{ d.logo }}" alt="">{% else %}<div class="ava">{{ d.nombre[:1]|upper }}</div>{% endif %}
+    {% if d.logo %}<img class="tb-logo{% if d.logo_claro %} dark{% endif %}" src="{{ d.logo }}" alt="">{% else %}<div class="ava">{{ d.nombre[:1]|upper }}</div>{% endif %}
     <b class="tb-name">{{ d.nombre }}</b>
     <button class="tb-btn" id="sBtn" aria-label="Buscar">🔍</button>
   </div>
@@ -181,7 +182,7 @@ h2{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cy
 <div class="wrap" id="app">
   <div class="hero{% if d.portada %} has-cover{% endif %}"{% if d.portada %} style="--cover:url('{{ d.portada }}')"{% endif %}>
     <span class="tag"><i></i>Atendido por Marcia · respuesta al instante</span>
-    <div class="brand">{% if d.logo %}<img class="logo-img" src="{{ d.logo }}" alt="Logo de {{ d.nombre }}">{% endif %}<h1>{{ d.nombre }}</h1></div>
+    <div class="brand">{% if d.logo %}<img class="logo-img{% if d.logo_claro %} dark{% endif %}" src="{{ d.logo }}" alt="Logo de {{ d.nombre }}">{% endif %}<h1>{{ d.nombre }}</h1></div>
     <div class="meta"><span>{{ bp.emoji }} {{ d.rubro_texto or bp.nombre }}</span><span>🕒 {{ d.horarios }}</span>{% if d.telefono %}<span>📞 {{ d.telefono }}</span>{% endif %}</div>
     <div class="askbox" data-open-chat role="button" tabindex="0"><span>💬 “{{ ('quiero un turno de ' ~ ej|lower) if bp.modo == 'turnos' else ('mandame 2 de ' ~ ej|lower) }}”</span><button class="btn btn-neon" type="button">Pedí por chat</button></div>
   </div>

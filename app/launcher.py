@@ -262,7 +262,7 @@ async def procesar(d: dict, texto: str, historia: list[dict], sesion: str = "") 
         res = await asyncio.gather(*tareas, return_exceptions=True)
         items, origen = res[0] if not isinstance(res[0], Exception) else ([], "")
         marca = res[1] if len(res) > 1 and not isinstance(res[1], Exception) else {}
-        d = {**d, **{k: v for k, v in marca.items() if k in ("web", "logo", "portada")}}
+        d = {**d, **{k: v for k, v in marca.items() if k in ("web", "logo", "portada", "logo_claro")}}
         if marca.get("nombre_web") and not d.get("nombre"):
             d["nombre"] = marca["nombre_web"]
         partes = []

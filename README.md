@@ -24,7 +24,19 @@ Python 3.12 · FastAPI · SQLite (WAL) · HTML/CSS/JS nativo · Caddy · systemd
 - [docs/idea-y-evaluacion.md](docs/idea-y-evaluacion.md): evaluación de la idea, alcance del MVP y riesgos.
 - [docs/servidor.md](docs/servidor.md): server, usuario y entorno.
 - [docs/bitacora.md](docs/bitacora.md): registro cronológico de todo lo que se hace.
-- `docs/deploy.md`: se crea cuando llegue el dominio.
+- [docs/deploy.md](docs/deploy.md): Caddy, servicio, URLs y cómo vincular el dominio.
+
+## Ver en vivo
+- Vista previa: https://66-97-32-220.sslip.io
+- Dominio oficial: https://dwday-38964763.online (cuando se cree la zona DNS)
 
 ## Estado
-Arquitectura de landing + launcher definida. Siguiente paso: esqueleto de la app (ver el plan de construcción en la arquitectura).
+- ✅ Landing pública.
+- 🚧 Launcher (`/crear`): placeholder; próximo paso del plan.
+
+## Correr local
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cp .env.example .env
+.venv/bin/uvicorn app.main:app --reload
+```

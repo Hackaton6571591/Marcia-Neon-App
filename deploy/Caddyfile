@@ -1,0 +1,37 @@
+# Marcia Neon App: Caddy reverse proxy
+# Dominio oficial (DonWeb) + dominio provisorio sslip.io mientras propaga el DNS.
+dwday-38964763.online, www.dwday-38964763.online, 66-97-32-220.sslip.io {
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+		-Server
+	}
+
+	# Landing y estáticos: directo desde disco (sin pasar por Python).
+	# root apunta SOLO a app/static: nada fuera de esa carpeta (.env, db, código) es accesible.
+	root * /home/hackaton/creador-ia/app/static
+	@landing path /
+	handle @landing {
+		header Cache-Control "public, max-age=300"
+		rewrite * /index.html
+		file_server
+	}
+	handle_path /static/* {
+		root * /home/hackaton/creador-ia/app/static
+		header Cache-Control "public, max-age=86400"
+		file_server
+	}
+
+	# Todo lo demás: la app FastAPI (solo escucha en localhost).
+	handle {
+		reverse_proxy 127.0.0.1:8000
+	}
+}
+
+# Acceso por IP directa: redirige al dominio provisorio con HTTPS.
+http://66.97.32.220 {
+	redir https://66-97-32-220.sslip.io{uri}
+}

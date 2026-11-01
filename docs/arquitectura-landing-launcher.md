@@ -45,6 +45,8 @@ flowchart LR
 - Al enviar el input o tocar un chip → `POST /api/launcher/sesiones` con el rubro y redirección a `/crear?s={id}`. El primer mensaje ya está cargado, así que no hay pantalla vacía.
 - **Secciones:** el problema (3 dolores: mensajes perdidos, pedidos mal anotados, clientes que esperan), cómo funciona (3 pasos: contás tu negocio, la IA arma la solución, la publicás), ejemplos (demos de restaurante y peluquería).
 - **Sin cookies de terceros ni trackers.**
+- **Diseño:** estética *neon* (fondo oscuro, gradiente magenta → violeta → cian, glassmorphism), coherente con el nombre. Hero con un teléfono que muestra una charla animada de Marcia tomando un pedido real y confirmándolo. Secciones: problema + antes/después, cómo funciona, rubros, beneficios, CTA final. Responsive y respeta `prefers-reduced-motion`.
+- **Implementado:** `app/static/index.html` (~23 KB, un solo archivo, CSS y JS inline, sin fuentes externas).
 
 ---
 

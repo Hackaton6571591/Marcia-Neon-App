@@ -20,3 +20,9 @@ Registro cronológico. Cada acción relevante se agrega acá.
 - Commit inicial `25f8aaa` subido a `origin/main`. Revisión de secretos sin coincidencias. Identidad git del repo: `hackaton@users.noreply.github.com` (para no exponer emails personales).
 - El proyecto pasa a llamarse **Marcia Neon App** (repo `Marcia-Neon-App`). Se actualizó el README.
 - Se diseñó la arquitectura de la landing y el launcher en `arquitectura-landing-launcher.md`: máquina de estados por etapas, blueprints JSON por rubro, capa de IA intercambiable (DeepSeek + simulado de respaldo), extractor JSON y respuesta en streaming en paralelo, eventos SSE, modelo de datos SQLite, API, estructura de carpetas y plan de construcción.
+- Se construyó la **landing** (`app/static/index.html`, ~23 KB, sin dependencias): estética neon, chat animado de demo, secciones de problema, cómo funciona, rubros y CTA. Los rubros y el input llevan a `/crear?rubro=…&msg=…`.
+- Backend mínimo FastAPI (`app/main.py`): `/salud`, `/crear` (placeholder del launcher con escape de HTML). Docs automáticas desactivadas.
+- Se instaló **Caddy 2.6.2** (apt) como root. `/etc/caddy/Caddyfile` es symlink a `deploy/Caddyfile`. Se agregó `caddy` al grupo `hackaton` para leer `app/static`.
+- Servicio systemd **`marcia`** (`deploy/marcia.service`): Uvicorn en `127.0.0.1:8000`, usuario `hackaton`, con sandbox.
+- **Vista previa pública con HTTPS:** https://66-97-32-220.sslip.io. Verificado: landing 200, `/.env` 404, compresión zstd, HTTP/3.
+- DonWeb asignó el dominio **`dwday-38964763.online`**. Diagnóstico: delegado a `ns1/ns2.donweb.com` pero sin zona DNS (SERVFAIL). Se documentaron los pasos oficiales de DonWeb para crearla en `deploy.md`. Caddy ya está configurado para el dominio y sacará el certificado solo cuando el DNS resuelva.

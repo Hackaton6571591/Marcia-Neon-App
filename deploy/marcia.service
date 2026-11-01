@@ -1,0 +1,20 @@
+[Unit]
+Description=Marcia Neon App (FastAPI/Uvicorn)
+After=network.target
+
+[Service]
+User=hackaton
+Group=hackaton
+WorkingDirectory=/home/hackaton/creador-ia
+EnvironmentFile=-/home/hackaton/creador-ia/.env
+ExecStart=/home/hackaton/creador-ia/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --proxy-headers --no-server-header
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/hackaton/creador-ia/data
+
+[Install]
+WantedBy=multi-user.target

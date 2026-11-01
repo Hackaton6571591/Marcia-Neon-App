@@ -26,6 +26,9 @@ h2{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cy
 .thumb{flex:none;width:64px;height:64px;border-radius:16px;display:grid;place-items:center;font-size:2rem;background:radial-gradient(circle at 30% 25%,hsla(var(--h),90%,65%,.45),transparent 60%),linear-gradient(135deg,hsla(var(--h),70%,35%,.5),hsla(calc(var(--h) + 60),80%,40%,.35));border:1px solid rgba(255,255,255,.08);box-shadow:inset 0 0 20px rgba(0,0,0,.3)}
 .thumb span{filter:drop-shadow(0 4px 8px rgba(0,0,0,.5))}
 .item .txt{flex:1;min-width:0}
+.thumb.photo{object-fit:cover;padding:0;background:#141127}
+.item .desc{color:var(--muted);font-size:.84rem;line-height:1.35;margin:2px 0 3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.item.agotado{opacity:.5}.item.agotado .qty{pointer-events:none;visibility:hidden}
 .item .n{font-weight:700;overflow-wrap:anywhere}.item small{color:var(--muted)}
 .qty{display:flex;align-items:center;gap:6px}
 .qty button{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:#141127;color:var(--text);font-size:1.1rem;cursor:pointer}
@@ -88,10 +91,10 @@ h2{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cy
   {% for cat, lista in grupos.items() %}
   <h2 id="c{{ loop.index }}">{{ cat }}</h2>
   {% for i, it, il in lista %}
-  <div class="item card">
-    <div class="thumb" style="--h:{{ il.hue }}"><span>{{ il.emoji }}</span></div>
-    <div class="txt"><div class="n">{{ it.nombre }}</div><small>{% if it.duracion_min %}{{ it.duracion_min }} min · {% endif %}<span class="price">${{ "{:,}".format(it.precio).replace(",", ".") }}</span></small></div>
-    <div class="qty" data-i="{{ i }}" data-p="{{ it.precio }}">
+  <div class="item card{% if it.get('stock') is not none and it.get('stock') <= 0 %} agotado{% endif %}">
+    {% if it.imagen %}<img class="thumb photo" src="{{ it.imagen }}" alt="{{ it.nombre }}" loading="lazy">{% else %}<div class="thumb" style="--h:{{ il.hue }}"><span>{{ il.emoji }}</span></div>{% endif %}
+    <div class="txt"><div class="n">{{ it.nombre }}</div>{% if it.descripcion %}<div class="desc">{{ it.descripcion }}</div>{% endif %}<small>{% if it.duracion_min %}{{ it.duracion_min }} min · {% endif %}<span class="price">${{ "{:,}".format(it.precio).replace(",", ".") }}</span>{% if it.get('stock') is not none and it.get('stock') <= 0 %} · <b style="color:#ff8fab">Agotado</b>{% elif it.get('stock') is not none and it.get('stock') <= 5 %} · <span style="color:var(--lime)">¡Quedan {{ it.get('stock') }}!</span>{% endif %}</small></div>
+    <div class="qty" data-i="{{ i }}" data-p="{{ it.precio }}" data-max="{{ it.get('stock') if it.get('stock') is not none else 50 }}">
       <button type="button" class="rm" aria-label="Quitar">−</button><span>0</span><button type="button" class="add" aria-label="Agregar {{ it.nombre }}">+</button>
     </div>
   </div>
@@ -141,7 +144,7 @@ const turnos={{ (bp.modo == 'turnos')|tojson }}, SLUG={{ slug|tojson }}, NOMBRE=
 /* ---- carrito del formulario ---- */
 function upd(){let t=0,c=0;document.querySelectorAll('.qty').forEach(q=>{const n=sel[q.dataset.i]||0;q.querySelector('span').textContent=n;q.classList.toggle('has',n>0);t+=n*q.dataset.p;c+=n});$('#tot').textContent=fmt(t);$('#go').disabled=!c}
 document.querySelectorAll('.qty').forEach(q=>{
-  q.querySelector('.add').onclick=()=>{const i=q.dataset.i;if(turnos){for(const k in sel)delete sel[k];sel[i]=1}else sel[i]=Math.min(50,(sel[i]||0)+1);upd()};
+  q.querySelector('.add').onclick=()=>{const i=q.dataset.i;if(turnos){for(const k in sel)delete sel[k];sel[i]=1}else sel[i]=Math.min(+q.dataset.max||50,(sel[i]||0)+1);upd()};
   q.querySelector('.rm').onclick=()=>{const i=q.dataset.i;sel[i]=Math.max(0,(sel[i]||0)-1);upd()};
 });
 if(turnos){const d=document.querySelector('[name=dia]');if(d){d.min=new Date().toISOString().slice(0,10);

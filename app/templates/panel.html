@@ -17,7 +17,10 @@ h1{margin:6px 0 4px;letter-spacing:-.02em}
 .empty{padding:40px;text-align:center;color:var(--muted)}
 .box{padding:18px;margin-bottom:16px}
 .box h3{margin:0 0 4px}
-.irow{display:grid;grid-template-columns:1fr 130px 120px {% if bp.modo == 'turnos' %}100px {% endif %}44px;gap:8px;margin-bottom:8px}
+.irow{display:grid;grid-template-columns:1fr 110px 120px {% if bp.modo == 'turnos' %}90px {% else %}90px {% endif %}44px;gap:8px;margin-bottom:8px}
+.irow2{display:grid;grid-template-columns:48px 1fr;gap:8px;margin:-2px 0 14px}
+.irow2 .ph{width:48px;height:48px;border-radius:12px;border:1px dashed var(--line);display:grid;place-items:center;cursor:pointer;overflow:hidden;background:#0d0b1a;font-size:1.2rem}
+.irow2 .ph img{width:100%;height:100%;object-fit:cover}
 .irow button{min-height:44px;border:1px solid var(--line);background:#1a1530;color:#ff8fab;border-radius:10px;cursor:pointer}
 .acts{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:center}
 .msg{font-size:.9rem;min-height:1.2em}
@@ -32,7 +35,7 @@ code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(-
 @media(max-width:600px){
   .kpis{grid-template-columns:1fr 1fr;gap:8px}.kpis .kpi:last-child{grid-column:1/-1}.kpi b{font-size:1.3rem}
   .ped{grid-template-columns:auto 1fr;gap:10px}.ped>.price{grid-column:2}
-  .irow{grid-template-columns:1fr 1fr {% if bp.modo == 'turnos' %}70px {% endif %}44px;padding-bottom:8px;border-bottom:1px dashed var(--line)}
+  .irow{grid-template-columns:1fr 1fr 80px 44px;padding-bottom:8px;border-bottom:1px dashed var(--line)}
   .irow input:first-child{grid-column:1/-1}
   .tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-inline:-16px;padding-inline:16px}.tabs button{flex:none}
   .box{padding:16px}.acts .btn{flex:1}
@@ -93,7 +96,7 @@ code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(-
     </div>
     <div class="box card">
       <h3>Cargar a mano</h3>
-      <p class="muted" style="margin-top:0">Nombre y precio{% if bp.modo == 'turnos' %} y duración en minutos{% endif %}. Los cambios se ven al instante en tu tienda.</p>
+      <p class="muted" style="margin-top:0">📷 Foto y descripción por producto (se ven en tu tienda y el vendedor virtual las usa). Nombre, precio, categoría{% if bp.modo == 'turnos' %} y duración en minutos{% else %} y stock (vacío = sin límite, 0 = agotado; se descuenta solo con cada pedido){% endif %}. Los cambios se ven al instante en tu tienda.</p>
       <div id="items"></div>
       <datalist id="cats">{% for c in (['Servicios'] if bp.modo == 'turnos' else ['Pizzas','Porciones','Empanadas','Bebidas','Postres','Combos','Productos']) %}<option value="{{ c }}">{% endfor %}</datalist>
       <div class="acts">
@@ -162,6 +165,16 @@ code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(-
       <p class="muted" style="font-size:.85rem;margin-bottom:0"><b>Google Calendar:</b> Otros calendarios → + → Desde URL → pegar.<br><b>iPhone/Mac:</b> Calendario → Archivo → Nueva suscripción.<br><b>Outlook:</b> Agregar calendario → Suscribirse desde la web.<br>Próximamente: sincronización en las dos direcciones con Google Calendar (bloquear horarios desde tu agenda).</p>
     </div>
     {% endif %}
+    <div class="box card pay">
+      <h3>🧠 Inteligencia artificial del vendedor</h3>
+      <p class="muted" style="margin:0">Por defecto usás la IA de Marcia (DeepSeek). Si querés, conectá <b>tu propia API key</b> y el vendedor virtual usa tu cuenta. La clave se guarda cifrada en el servidor y nunca se vuelve a mostrar.</p>
+      <label>Proveedor<select id="iaProv"><option value="plataforma">IA de Marcia (incluida)</option><option value="deepseek">Mi cuenta de DeepSeek</option><option value="openai">Mi cuenta de OpenAI (ChatGPT)</option></select></label>
+      <div id="iaKeyBox" hidden>
+        <label>API key<input id="iaKey" type="password" autocomplete="off" placeholder="sk-..."></label>
+        <label style="margin-top:10px">Modelo (opcional)<input id="iaModel" placeholder="deepseek-chat / gpt-4o-mini"></label>
+      </div>
+      <div class="acts"><button class="btn btn-neon" id="iaSave">Guardar y probar</button><span class="msg" id="iaMsg"></span></div>
+    </div>
     <div class="box card soon"><h3>💬 WhatsApp Business API <span class="tag">Próximamente</span></h3><p class="muted" style="margin:0">Marcia responde y toma pedidos directo en tu WhatsApp, y te avisa de cada pedido nuevo.</p></div>
     <div class="box card"><h3>🤖 Vendedor virtual en tu tienda <span class="tag"><i></i>Activo</span></h3><p class="muted" style="margin:0">Tus clientes piden conversando: "mandame 2 porciones de muzza, ¿qué empanadas tenés?". Responde dudas, arma el pedido, confirma y pide datos de envío y pago. Lo que sabe lo configurás en la pestaña <b>Vendedor virtual</b>. IA: DeepSeek (preparado para Claude o ChatGPT).</p></div>
     <div class="box card soon"><h3>🔵 Mercado Pago Checkout <span class="tag">Próximamente</span></h3><p class="muted" style="margin:0">Cobro online con confirmación automática del pago en el pedido.</p></div>
@@ -182,11 +195,18 @@ function renderItems(){
   const box=$('#items');box.innerHTML='';
   items.forEach((it,i)=>{
     const r=document.createElement('div');r.className='irow';
-    r.innerHTML=`<input placeholder="Nombre" maxlength="60"><input type="number" min="1" inputmode="numeric" placeholder="Precio $"><input placeholder="Categoría" maxlength="30" list="cats">${TURNOS?'<input class="dur" type="number" min="5" inputmode="numeric" placeholder="Min">':''}<button title="Borrar">✕</button>`;
-    const [n,p,c,d]=r.querySelectorAll('input');n.value=it.nombre||'';p.value=it.precio||'';c.value=it.categoria||'';if(d)d.value=it.duracion_min||30;
-    n.oninput=()=>it.nombre=n.value;p.oninput=()=>it.precio=+p.value;c.oninput=()=>it.categoria=c.value;if(d)d.oninput=()=>it.duracion_min=+d.value;
+    r.innerHTML=`<input placeholder="Nombre" maxlength="60"><input type="number" min="1" inputmode="numeric" placeholder="Precio $"><input placeholder="Categoría" maxlength="30" list="cats">${TURNOS?'<input class="dur" type="number" min="5" inputmode="numeric" placeholder="Min">':'<input class="stk" type="number" min="0" inputmode="numeric" placeholder="Stock ∞" title="Vacío = sin límite · 0 = agotado">'}<button title="Borrar">✕</button>`;
+    const [n,p,c,x]=r.querySelectorAll('input');n.value=it.nombre||'';p.value=it.precio||'';c.value=it.categoria||'';
+    if(TURNOS){x.value=it.duracion_min||30;x.oninput=()=>it.duracion_min=+x.value}else{x.value=(it.stock??'');x.oninput=()=>{if(x.value==='')delete it.stock;else it.stock=+x.value}}
+    n.oninput=()=>it.nombre=n.value;p.oninput=()=>it.precio=+p.value;c.oninput=()=>it.categoria=c.value;
     r.querySelector('button').onclick=()=>{items.splice(i,1);renderItems()};
-    box.appendChild(r);
+    // segunda línea: foto + descripción (enriquece la tienda y lo que sabe el vendedor virtual)
+    const r2=document.createElement('div');r2.className='irow2';
+    r2.innerHTML=`<label class="ph" title="Foto del producto">${it.imagen?`<img src="${it.imagen}" alt="">`:'📷'}<input type="file" accept="image/png,image/jpeg,image/webp" hidden></label><input class="desc" maxlength="200" placeholder="Descripción (opcional): ingredientes, medidas, marca…">`;
+    const ds=r2.querySelector('.desc');ds.value=it.descripcion||'';ds.oninput=()=>it.descripcion=ds.value;
+    r2.querySelector('input[type=file]').onchange=async ev=>{const f=ev.target.files[0];if(!f)return;
+      try{const j=await api('imagen',{method:'POST',headers:{'Content-Type':f.type},body:f});it.imagen=j.url;r2.querySelector('.ph').firstChild.replaceWith(Object.assign(document.createElement('img'),{src:j.url}));msg($('#itemsMsg'),'Foto cargada: tocá Guardar cambios',1)}catch(er){msg($('#itemsMsg'),er.message)}};
+    box.appendChild(r2);
   });
 }
 renderItems();
@@ -212,6 +232,11 @@ $('#mGo').onclick=async()=>{const u=$('#mUrl').value.trim();if(!u){msg($('#mMsg'
   $('#mGo').disabled=true;msg($('#mMsg'),'Leyendo la página…',1);
   try{const j=await api('importar-url',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:u,reemplazar:$('#mReemp').checked})});
     items=j.items;renderItems();msg($('#mMsg'),`✓ ${j.importados} productos copiados`+(j.ia==='deepseek'?' con IA':''),1)}catch(e){msg($('#mMsg'),e.message)}finally{$('#mGo').disabled=false}};
+(async()=>{try{const j=await api('ia');$('#iaProv').value=j.proveedor;$('#iaModel').value=j.modelo||'';if(j.clave)$('#iaKey').placeholder=j.clave+' (guardada)';$('#iaKeyBox').hidden=j.proveedor==='plataforma'}catch(e){}})();
+$('#iaProv').onchange=()=>{$('#iaKeyBox').hidden=$('#iaProv').value==='plataforma'};
+$('#iaSave').onclick=async()=>{$('#iaSave').disabled=true;msg($('#iaMsg'),'Probando conexión…',1);
+  try{const j=await api('ia',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({proveedor:$('#iaProv').value,api_key:$('#iaKey').value,modelo:$('#iaModel').value})});
+    $('#iaKey').value='';if(j.clave)$('#iaKey').placeholder=j.clave+' (guardada)';msg($('#iaMsg'),j.proveedor==='plataforma'?'✓ Usando la IA de Marcia':'✓ Conectado con tu cuenta',1)}catch(e){msg($('#iaMsg'),e.message)}finally{$('#iaSave').disabled=false}};
 $('#saveInfo').onclick=async()=>{const v=id=>{const el=$(id);return el?el.value:''};
   try{await api('info',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({envio:v('#iEnv'),demora:v('#iDem'),condiciones:v('#iCon'),faq:v('#iFaq')})});msg($('#infoMsg'),'✓ Guardado',1)}catch(e){msg($('#infoMsg'),e.message)}};
 $('#savePay').onclick=async()=>{

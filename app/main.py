@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
-from . import importar, launcher, mercadopago, vendedor
+from . import ia, importar, launcher, mercadopago, vendedor
 from .blueprints import ALIAS_CHIPS, BLUEPRINTS
 
 BASE = Path(__file__).parent
@@ -33,6 +33,8 @@ def _cargar_env():
 
 
 _cargar_env()
+import logging
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 app = FastAPI(title="Marcia Neon App", docs_url=None, redoc_url=None, openapi_url=None)
 tpl = Jinja2Templates(directory=BASE / "templates")
 
@@ -61,6 +63,7 @@ def init_db():
             estado TEXT DEFAULT 'nuevo', creado INT);
         CREATE INDEX IF NOT EXISTS ix_pedidos_negocio ON pedidos(negocio_id, creado);
         """)
+        c.execute("CREATE TABLE IF NOT EXISTS secretos(negocio_id INT PRIMARY KEY, proveedor TEXT, api_key TEXT, modelo TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS chats(id TEXT PRIMARY KEY, negocio_id INT, estado TEXT, historia TEXT, mensajes INT DEFAULT 0, creado INT)")
         cols = [r[1] for r in c.execute("PRAGMA table_info(pedidos)")]
         if "pago" not in cols:
@@ -255,6 +258,8 @@ async def _registrar_pedido(request, slug, row, d, bp, items: dict, cliente, con
         idx, cant = int(idx), int(cant)
         if 0 <= idx < len(d["items"]) and 0 < cant <= 50:
             it = d["items"][idx]
+            if it.get("stock") is not None and cant > int(it["stock"]):
+                raise HTTPException(409, f"De {it['nombre']} " + ("no queda stock." if int(it["stock"]) <= 0 else f"solo quedan {it['stock']}."))
             detalle.append({"nombre": it["nombre"], "cantidad": cant, "precio": it["precio"]})
             total += it["precio"] * cant
     if not detalle:
@@ -272,6 +277,12 @@ async def _registrar_pedido(request, slug, row, d, bp, items: dict, cliente, con
                         (row["id"], bp["modo"], cliente[:60], (contacto or "")[:40], json.dumps(detalle, ensure_ascii=False),
                          total, cuando or "", (nota or "")[:300], pago, int(time.time())))
     numero = cur.lastrowid
+    if any(d["items"][int(k)].get("stock") is not None for k in items if 0 <= int(k) < len(d["items"])):
+        for k, cant in items.items():  # descontar stock
+            it = d["items"][int(k)]
+            if it.get("stock") is not None:
+                it["stock"] = max(0, int(it["stock"]) - int(cant))
+        _guardar(row["id"], d)
     pago_url = None
     if pago == "mercadopago" and mercadopago.activo():
         base = os.getenv("BASE_URL", "").rstrip("/") or str(request.base_url).rstrip("/").replace("http://", "https://")
@@ -303,7 +314,7 @@ async def chat_vendedor(slug: str, m: ChatMsg, request: Request):
         raise HTTPException(429, "Llegaste al límite de mensajes de esta charla.")
     if e["paso"] == "hecho":  # pedido ya hecho: empieza uno nuevo manteniendo los datos del cliente
         e = {**vendedor.estado_inicial(), "cliente": e["cliente"]}
-    respuesta, proveedor = await vendedor.responder(d, bp, pagos, e, m.texto.strip(), hist)
+    respuesta, proveedor = await vendedor.responder(d, bp, pagos, e, m.texto.strip(), hist, ia.credenciales(_secreto(row["id"])))
     pedido = None
     if e["paso"] == "final":
         falta = vendedor.faltantes(e, bp["modo"], pagos)
@@ -590,6 +601,67 @@ async def subir_logo(slug: str, request: Request, t: str = ""):
     d["logo"] = f"/media/{nombre}"
     _guardar(row["id"], d)
     return {"logo": d["logo"]}
+
+
+def _secreto(negocio_id: int) -> dict | None:
+    with db() as c:
+        r = c.execute("SELECT proveedor, api_key, modelo FROM secretos WHERE negocio_id=?", (negocio_id,)).fetchone()
+    return dict(r) if r else None
+
+
+class IAConfig(BaseModel):
+    proveedor: str = Field("plataforma", pattern="^(plataforma|deepseek|openai)$")
+    api_key: str = Field("", max_length=200)
+    modelo: str = Field("", max_length=60)
+
+
+@app.get("/api/panel/{slug}/ia")
+def ver_ia(slug: str, t: str = ""):
+    """Nunca devuelve la clave: solo los últimos 4 caracteres."""
+    row, d, bp = _auth(slug, t)
+    s = _secreto(row["id"])
+    if not s:
+        return {"proveedor": "plataforma", "modelo": "", "clave": ""}
+    return {"proveedor": s["proveedor"], "modelo": s["modelo"] or "", "clave": "••••" + s["api_key"][-4:]}
+
+
+@app.put("/api/panel/{slug}/ia")
+async def guardar_ia(slug: str, cfg: IAConfig, request: Request, t: str = ""):
+    limitar(request, 5, "ia")
+    row, d, bp = _auth(slug, t)
+    if cfg.proveedor == "plataforma":
+        with db() as c:
+            c.execute("DELETE FROM secretos WHERE negocio_id=?", (row["id"],))
+        return {"proveedor": "plataforma", "clave": ""}
+    actual = _secreto(row["id"]) or {}
+    key = cfg.api_key.strip() or (actual.get("api_key") if actual.get("proveedor") == cfg.proveedor else "")
+    if not key:
+        raise HTTPException(400, "Pegá tu API key.")
+    cred = ia.credenciales({"proveedor": cfg.proveedor, "api_key": key, "modelo": cfg.modelo.strip()})
+    if not cred:
+        raise HTTPException(400, "La IA está desactivada en el servidor.")
+    if err := await ia.probar(cred):
+        raise HTTPException(400, err)
+    with db() as c:
+        c.execute("INSERT OR REPLACE INTO secretos(negocio_id, proveedor, api_key, modelo) VALUES(?,?,?,?)",
+                  (row["id"], cfg.proveedor, key, cfg.modelo.strip()))
+    return {"proveedor": cfg.proveedor, "clave": "••••" + key[-4:], "modelo": cred["modelo"]}
+
+
+@app.post("/api/panel/{slug}/imagen")
+async def subir_imagen_producto(slug: str, request: Request, t: str = ""):
+    """Foto de un producto (cuerpo = PNG/JPG/WEBP, máx 3 MB). Devuelve la URL para guardarla en el producto."""
+    limitar(request, 30, "imagen")
+    row, d, bp = _auth(slug, t)
+    tipo = request.headers.get("content-type", "").split(";")[0].lower()
+    ext = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}.get(tipo)
+    data = await request.body()
+    if not ext or not (100 < len(data) <= 3_000_000):
+        raise HTTPException(400, "Subí una imagen PNG, JPG o WEBP de hasta 3 MB.")
+    (DATA / "media").mkdir(exist_ok=True)
+    nombre = f"n{row['id']}-p-{secrets.token_hex(4)}.{ext}"
+    (DATA / "media" / nombre).write_bytes(data)
+    return {"url": f"/media/{nombre}"}
 
 
 class ImportarURL(BaseModel):

@@ -12,7 +12,6 @@ import re
 import unicodedata
 from datetime import datetime, timedelta
 
-import httpx
 
 log = logging.getLogger("marcia.vendedor")
 
@@ -70,22 +69,26 @@ def faltantes(e: dict, modo: str, pagos: dict) -> list[str]:
 
 # ---------- conocimiento del negocio ----------
 
+def disponible(it: dict) -> bool:
+    return it.get("stock") is None or int(it["stock"]) > 0
+
+
 def ficha(d: dict, bp: dict, pagos: dict) -> str:
+    """Ficha COMPACTA (pocos tokens) y ESTABLE (se cachea en DeepSeek). Es la única fuente de verdad del bot."""
     info = d.get("info") or {}
-    items = "\n".join(f"{i}. {it['nombre']}: {fmt(it['precio'])}" + (f" ({it['duracion_min']} min)" if it.get("duracion_min") else "")
-                      for i, it in enumerate(d["items"]))
-    p = ", ".join(NOMBRES_PAGO[k] + (f" ({v})" if v else "") for k, v in pagos.items())
-    return f"""Negocio: {d['nombre']} ({d.get('rubro_texto') or bp['nombre']})
-Modo: {'TURNOS (reservas de servicios)' if bp['modo'] == 'turnos' else 'PEDIDOS (productos)'}
-Horarios: {d.get('horarios') or 'no informado'}
-Teléfono: {d.get('telefono') or 'no informado'}
-Catálogo (índice. nombre: precio):
-{items}
-Medios de pago: {p}
-Envío / entrega: {info.get('envio') or 'no informado'}
-Tiempo de entrega: {info.get('demora') or 'no informado'}
-Condiciones de venta: {info.get('condiciones') or 'no informado'}
-Otras preguntas frecuentes: {info.get('faq') or 'no informado'}"""
+    lineas = []
+    for i, it in enumerate(d["items"]):
+        st = "" if it.get("stock") is None else (" AGOTADO" if int(it["stock"]) <= 0 else f" stock:{it['stock']}")
+        dur = f" {it['duracion_min']}min" if it.get("duracion_min") else ""
+        cat = f" [{it['categoria']}]" if it.get("categoria") else ""
+        desc = f" ({it['descripcion'][:70]})" if it.get("descripcion") else ""
+        lineas.append(f"{i}|{it['nombre']}|{it['precio']}{dur}{cat}{st}{desc}")
+    extra = [f"{k}: {v}" for k, v in (("Envío", info.get("envio")), ("Demora", info.get("demora")),
+                                        ("Condiciones", info.get("condiciones")), ("FAQ", info.get("faq"))) if v]
+    return "\n".join([f"NEGOCIO: {d['nombre']} ({'turnos' if bp['modo'] == 'turnos' else 'pedidos'})",
+                      f"Horarios: {d.get('horarios') or '-'}" + (f" | Tel: {d['telefono']}" if d.get("telefono") else ""),
+                      "Pagos: " + ", ".join(pagos), *extra,
+                      "CATALOGO (indice|nombre|precio en pesos):", *lineas])
 
 
 # ---------- matching de productos ----------
@@ -178,7 +181,7 @@ def parse_cuando(texto: str) -> str | None:
 # ---------- vendedor por reglas (sin red) ----------
 
 SI = re.compile(r"^\s*(si|sí|dale|ok|okey|confirmo|confirmar|confirmado|perfecto|listo|de una|va|correcto|esta bien|está bien)\b", re.I)
-NADA_MAS = re.compile(r"(nada mas|eso es todo|eso nomas|eso solo|solo eso|es todo|nada|no gracias|terminar|cerrar|confirm|listo)", re.I)
+NADA_MAS = re.compile(r"\b(nada mas|eso es todo|eso nomas|eso solo|solo eso|es todo|nada|no gracias|terminar|cerrar|confirm\w*|listo)\b", re.I)
 PREGUNTA = re.compile(r"(\?|^\s*(que|qué|cual|cuál|cuanto|cuánto|tienen|tenes|tenés|hay|hacen|como|cómo|donde|dónde|a que|hasta))", re.I)
 
 
@@ -195,7 +198,7 @@ def _faq(d: dict, bp: dict, pagos: dict, n: str) -> str | None:
     if re.search(r"condicion|devolu|cambio|garantia|minimo|factura", n):
         return f"📋 {info['condiciones']}" if info.get("condiciones") else "📋 Para condiciones especiales consultá directo con el local" + (f" al {d['telefono']}." if d.get("telefono") else ".")
     if re.search(r"menu|carta|que tenes|que tienen|que venden|productos|servicios|precios|lista", n):
-        return "Esto es lo que tenemos 👇\n" + "\n".join(f"• {it['nombre']}: {fmt(it['precio'])}" for it in d["items"][:25])
+        return "Esto es lo que tenemos 👇\n" + "\n".join(f"• {it['nombre']}: {fmt(it['precio'])}" + ("" if disponible(it) else " (agotado)") for it in d["items"][:30])
     return None
 
 
@@ -254,8 +257,17 @@ def vendedor_simulado(d: dict, bp: dict, pagos: dict, e: dict, texto: str) -> st
             idx = buscar_items(d, seg + " " + ctx) if ctx and not re.search(r"pizza|entera|grande", norm(seg)) else buscar_items(d, seg)
             if len(idx) != 1:
                 idx = buscar_items(d, seg)
+            if len(idx) == 1 and not disponible(d["items"][idx[0]]):
+                agregados.append(f"⚠️ {d['items'][idx[0]]['nombre']} está agotado")
+                continue
             if len(idx) == 1:
                 c = 1 if turnos else _cantidad(seg)
+                st = d["items"][idx[0]].get("stock")
+                if st is not None:
+                    c = min(c, int(st) - e["carrito"].get(str(idx[0]), 0))
+                    if c <= 0:
+                        agregados.append(f"⚠️ no quedan más {d['items'][idx[0]]['nombre']}")
+                        continue
                 if turnos:
                     e["carrito"] = {}
                 e["carrito"][str(idx[0])] = (0 if turnos else e["carrito"].get(str(idx[0]), 0)) + c
@@ -271,12 +283,14 @@ def vendedor_simulado(d: dict, bp: dict, pagos: dict, e: dict, texto: str) -> st
     if len(exacto) == 1 and len(_tokens(d["items"][exacto[0]]["nombre"])) > 0 and \
             sum(1 for w in _tokens(d["items"][exacto[0]]["nombre"]) if _match(n, w)) == len(_tokens(d["items"][exacto[0]]["nombre"])):
         it = d["items"][exacto[0]]
+        if not disponible(it):
+            return saludo + f"Uy, hoy **{it['nombre']}** está agotado 😕 ¿Te ofrezco otra cosa del menú?"
         e["sugerido"] = exacto[0]
         return saludo + f"¡Sí! Tenemos **{it['nombre']}** a {fmt(it['precio'])}" + \
                (f" ({it['duracion_min']} min). ¿Te lo reservo?" if turnos else ". ¿Cuántas te anoto?")
     idx = buscar_items(d, texto, listar=True)
     if idx:
-        return saludo + "Tenemos 👇\n" + "\n".join(f"• {d['items'][i]['nombre']}: {fmt(d['items'][i]['precio'])}" for i in idx) + \
+        return saludo + "Tenemos 👇\n" + "\n".join(f"• {d['items'][i]['nombre']}: {fmt(d['items'][i]['precio'])}" + ("" if disponible(d["items"][i]) else " (agotado)") for i in idx) + \
                "\n\n¿Cuál te " + ("reservo?" if turnos else "anoto y cuántas?")
     if e["carrito"] and NADA_MAS.search(n):
         e["paso"] = "confirmar"
@@ -314,6 +328,31 @@ def _pedir_dato(e, bp, pagos):
     return ""
 
 
+TEL_RE = re.compile(r"(\+?\d[\d\s\-]{7,}\d)")
+
+
+def _completar_datos(e, bp, pagos, texto):
+    """Detecta en un mensaje con varios datos juntos: teléfono, retiro/dirección, medio de pago y nombre."""
+    n = norm(texto)
+    if not e["cliente"].get("contacto") and (m := TEL_RE.search(texto)):
+        e["cliente"]["contacto"] = m.group(1).strip()
+    if bp["modo"] != "turnos" and not e["cliente"].get("direccion"):
+        if re.search(r"\bretir|paso a buscar|lo busco", n):
+            e["cliente"]["direccion"] = "Retira en el local"
+        elif m := re.search(r"((?:av\.?|avenida|calle)?\s*[a-záéíóúñ.]+(?:\s+[a-záéíóúñ.]+)*\s+\d{1,5}(?:\s*\w{1,4})?)", texto, re.I):
+            if not TEL_RE.fullmatch(m.group(1).strip()):
+                e["cliente"]["direccion"] = m.group(1).strip()[:120]
+    if not e.get("pago"):
+        for k, kw in (("mercadopago", "mercado"), ("transferencia", "transf"), ("efectivo", "efect")):
+            if k in pagos and kw in n:
+                e["pago"] = k
+    if not e["cliente"].get("nombre"):
+        primero = re.split(r"[,;\n]", texto)[0].strip()
+        primero = re.sub(r"(?i)^(soy|me llamo|a nombre de)\s+", "", primero)
+        if 1 < len(primero) <= 30 and not re.search(r"\d", primero) and not SI.search(primero):
+            e["cliente"]["nombre"] = primero
+
+
 def _capturar_dato(e, bp, pagos, texto):
     f = faltantes(e, bp["modo"], pagos)
     t = texto.strip()[:120]
@@ -338,81 +377,126 @@ def _capturar_dato(e, bp, pagos, texto):
 
 # ---------- vendedor con DeepSeek ----------
 
-SYSTEM = """Sos el vendedor virtual de un negocio local argentino. Hablás en español rioplatense, cálido, breve (2-4 oraciones), con algún emoji. Sabés todo lo que está en la FICHA del negocio y NADA más: si te preguntan algo que no está, decí que el local lo confirma (no inventes precios, costos de envío ni condiciones).
-Tu objetivo es vender: recomendá, respondé dudas y armá el pedido.
-Proceso obligatorio:
-1. Cuando el cliente pide productos, agregalos y preguntá "¿algo más?".
-2. Cuando termina, mostrá el resumen (usá el TOTAL que te da el sistema) y preguntá si CONFIRMA o quiere CAMBIAR algo.
-3. Con la confirmación, pedí de a un dato: nombre, {dato_entrega}, teléfono/WhatsApp y medio de pago (solo los de la ficha).
-4. Marcá "confirmado": true SOLO cuando el cliente confirmó explícitamente el pedido final.
-Respondé SOLO un JSON:
-{{"respuesta": "...", "agregar": [{{"indice": int, "cantidad": int}}], "quitar": [int], "vaciar": false,
-  "cliente": {{"nombre": "", "direccion": "", "contacto": ""}}, "cuando": "YYYY-MM-DD HH:MM o vacío", "pago": "efectivo|mercadopago|transferencia o vacío", "confirmado": false}}
-Usá los índices del catálogo. Solo incluí en "cliente" los datos que el cliente dio. Hoy es {hoy}."""
+SYSTEM = """Sos el vendedor virtual de un negocio local argentino. Español rioplatense, cálido y MUY breve (1-3 oraciones), algún emoji.
+REGLAS ESTRICTAS:
+- Tu ÚNICA fuente es la FICHA (catálogo, stock, precios, info). Si algo no está en la ficha, NO existe: decí que no lo tenés o que el local lo confirma. Nunca inventes productos, precios, promos, envíos ni condiciones.
+- Productos AGOTADO: no se venden; ofrecé una alternativa del catálogo. No vendas más unidades que el stock.
+- NO escribas resúmenes del carrito ni totales: el sistema los agrega solo con los precios reales.
+- "agregar" y "quitar": SOLO lo que el cliente pide en ESTE mensaje (lo anterior ya está en ESTADO.carrito; no lo repitas).
+- Proceso: agregá lo que pide y preguntá si quiere algo más. Cuando termina, pedí confirmación o cambios. Con la confirmación pedí de a un dato: nombre, {entrega}, teléfono y medio de pago (solo los de la ficha). "confirmado": true SOLO si el cliente confirmó explícitamente el pedido completo.
+Respondé SOLO JSON: {{"respuesta":"...","agregar":[{{"indice":0,"cantidad":1}}],"quitar":[0],"cliente":{{"nombre":"","direccion":"","contacto":""}},"cuando":"","pago":"","confirmado":false}}
+Usá índices del catálogo. Omití campos vacíos."""
 
 
-async def vendedor_deepseek(d, bp, pagos, e, texto, historia) -> str | None:
-    key = os.getenv("DEEPSEEK_API_KEY", "").strip()
-    if not key or os.getenv("IA_PROVIDER", "deepseek") == "simulado":
+def _precios_ok(texto: str, d: dict, e: dict) -> bool:
+    """Anti-alucinación: todo precio que mencione la IA debe existir (catálogo, subtotales, total o info del negocio)."""
+    vistos = {int(x.replace(".", "")) for x in re.findall(r"\$\s?(\d{1,3}(?:\.\d{3})+|\d+)", texto)}
+    if not vistos:
+        return True
+    ok = {it["precio"] for it in d["items"]}
+    ok |= {d["items"][int(k)]["precio"] * c for k, c in e["carrito"].items() if int(k) < len(d["items"])}
+    ok.add(resumen(d, e)[1])
+    info = " ".join(str(v) for v in (d.get("info") or {}).values())
+    ok |= {int(x.replace(".", "")) for x in re.findall(r"(\d{1,3}(?:\.\d{3})+|\d+)", info)}
+    return vistos <= ok
+
+
+async def vendedor_ia(d, bp, pagos, e, texto, historia, cred) -> tuple[str, dict] | None:
+    """Devuelve (respuesta, estado_nuevo) o None si no hay IA, falla, o la respuesta no pasa los controles."""
+    from . import ia
+    if not cred or not ia.cupo_disponible():
         return None
     turnos = bp["modo"] == "turnos"
-    r, tot = resumen(d, e)
-    sistema = SYSTEM.format(dato_entrega="día y hora del turno" if turnos else "dirección de entrega (o si retira)",
-                            hoy=datetime.now().strftime("%A %Y-%m-%d %H:%M"))
-    estado = {"carrito_actual": r or "vacío", "total_calculado_por_el_sistema": fmt(tot),
-              "datos_cliente": e["cliente"], "cuando": e.get("cuando"), "pago": e.get("pago"),
+    hoy = datetime.now()
+    estado = {"hoy": hoy.strftime("%a %Y-%m-%d %H:%M"), "carrito": {d["items"][int(k)]["nombre"]: c for k, c in e["carrito"].items()
+              if int(k) < len(d["items"])}, "cliente": e["cliente"], "cuando": e.get("cuando"), "pago": e.get("pago"),
               "faltan": faltantes(e, bp["modo"], pagos)}
-    msgs = [{"role": "system", "content": sistema},
-            {"role": "system", "content": "FICHA DEL NEGOCIO:\n" + ficha(d, bp, pagos)},
-            {"role": "system", "content": "ESTADO: " + json.dumps(estado, ensure_ascii=False)}]
-    msgs += historia[-8:] + [{"role": "user", "content": texto}]
+    msgs = [{"role": "system", "content": SYSTEM.format(entrega="día y hora (YYYY-MM-DD HH:MM en 'cuando')" if turnos else "dirección o si retira")},
+            {"role": "system", "content": "FICHA:\n" + ficha(d, bp, pagos)}]      # fijo -> cacheado
+    msgs += ia.historia_json(historia[-6:])
+    msgs += [{"role": "system", "content": "ESTADO:" + json.dumps(estado, ensure_ascii=False, separators=(",", ":"))},
+             {"role": "user", "content": texto[:500]}]
     try:
-        async with httpx.AsyncClient(timeout=25) as c:
-            resp = await c.post("https://api.deepseek.com/chat/completions",
-                                headers={"Authorization": f"Bearer {key}"},
-                                json={"model": os.getenv("DEEPSEEK_MODEL", "deepseek-chat"), "messages": msgs,
-                                      "response_format": {"type": "json_object"}, "temperature": 0.5, "max_tokens": 600})
-            resp.raise_for_status()
-            out = json.loads(resp.json()["choices"][0]["message"]["content"])
+        out = await ia.chat_json(cred, msgs, max_tokens=300, temperature=0.3)
     except Exception as ex:
-        log.warning("DeepSeek (vendedor) falló, uso reglas: %s", ex)
+        log.warning("IA (vendedor) falló, uso reglas: %s", ex)
         return None
-    # aplicar acciones validadas
-    if out.get("vaciar"):
-        e["carrito"] = {}
+    e2 = json.loads(json.dumps(e))  # se aplica sobre una copia: solo se acepta si pasa los controles
+    avisos = []
+    cierre = bool(NADA_MAS.search(norm(texto)) or SI.search(texto)) and not re.search(r"\d+\s+\w", texto)
+    if cierre or e.get("paso") == "datos":
+        out["agregar"], out["quitar"] = [], []  # en mensajes de cierre o de datos no se tocan productos
     for q in out.get("quitar") or []:
-        e["carrito"].pop(str(q), None)
+        e2["carrito"].pop(str(q), None)
     for a in out.get("agregar") or []:
         try:
             i, c = int(a["indice"]), max(1, min(50, int(a.get("cantidad", 1))))
         except (KeyError, ValueError, TypeError):
             continue
-        if 0 <= i < len(d["items"]):
-            if turnos:
-                e["carrito"] = {str(i): 1}
-            else:
-                e["carrito"][str(i)] = e["carrito"].get(str(i), 0) + c
+        if not 0 <= i < len(d["items"]):
+            continue
+        it = d["items"][i]
+        if not disponible(it):
+            avisos.append(f"⚠️ {it['nombre']} está agotado.")
+            continue
+        if turnos:
+            e2["carrito"] = {str(i): 1}
+            continue
+        nueva = e2["carrito"].get(str(i), 0) + c
+        if it.get("stock") is not None and nueva > int(it["stock"]):
+            nueva = int(it["stock"])
+            avisos.append(f"⚠️ De {it['nombre']} solo quedan {it['stock']}.")
+        e2["carrito"][str(i)] = nueva
     for k in ("nombre", "direccion", "contacto"):
         v = (out.get("cliente") or {}).get(k)
         if isinstance(v, str) and v.strip():
-            e["cliente"][k] = v.strip()[:120]
+            e2["cliente"][k] = v.strip()[:120]
     if turnos and out.get("cuando"):
         try:
             datetime.strptime(str(out["cuando"]), "%Y-%m-%d %H:%M")
-            e["cuando"] = str(out["cuando"])
+            e2["cuando"] = str(out["cuando"])
         except ValueError:
             pass
     if out.get("pago") in pagos:
-        e["pago"] = out["pago"]
-    e["paso"] = "final" if out.get("confirmado") else e["paso"]
-    return str(out.get("respuesta") or "").strip() or "¿Me repetís? 🙏"
+        e2["pago"] = out["pago"]
+    resp = str(out.get("respuesta") or "").strip()
+    resp = re.split(r"\n\s*(?:🛒|Llevás|Te resumo|Total parcial)", resp)[0].strip()  # el resumen lo pone el servidor
+    if not resp or not _precios_ok(resp, d, e2):
+        log.warning("Respuesta de IA descartada (vacía o con precios inexistentes): %r", resp[:200])
+        return None
+    termina = bool(NADA_MAS.search(norm(texto))) and e.get("paso") != "confirmar"
+    if e2["carrito"] and not e.get("resumen_ok") and (termina or (out.get("confirmado") and e2["carrito"] == e["carrito"])):
+        # el cliente SIEMPRE ve el resumen con el total real y confirma antes de pedirle datos
+        r, tot = resumen(d, e2)
+        e2.update(paso="confirmar", resumen_ok=True)
+        return (f"Te resumo {'la reserva' if turnos else 'el pedido'} 📝\n{r}\n**Total: {fmt(tot)}**\n\n"
+                "¿Te lo confirmo o querés cambiar algo?"), e2
+    if e2["carrito"] != e["carrito"]:
+        e2["resumen_ok"] = False
+        e2["paso"] = "comprando"  # cambió el pedido: hay que volver a mostrar el resumen y confirmar
+    if e2.get("resumen_ok") and e.get("paso") in ("confirmar", "datos"):
+        _completar_datos(e2, bp, pagos, texto)  # respaldo del servidor por si la IA no extrajo algún dato
+    if e.get("paso") == "confirmar" and SI.search(texto):
+        e2["paso"] = "datos"  # confirmó el resumen: ahora se piden los datos
+    if (out.get("confirmado") and e2.get("resumen_ok")) or \
+            (e2.get("paso") == "datos" and e2.get("resumen_ok") and not faltantes(e2, bp["modo"], pagos)):
+        e2["paso"] = "final"  # ya confirmó el pedido y están todos los datos: se crea sin volver a preguntar
+    elif e2["carrito"] != e["carrito"]:
+        r, tot = resumen(d, e2)
+        resp += f"\n\n🛒 Llevás:\n{r}\nTotal parcial: **{fmt(tot)}**" if r else ""
+    if avisos:
+        resp = " ".join(avisos) + "\n" + resp
+    return resp, e2
 
 
-async def responder(d, bp, pagos, e, texto, historia) -> tuple[str, str]:
+async def responder(d, bp, pagos, e, texto, historia, cred=None) -> tuple[str, str]:
     """Devuelve (respuesta, proveedor). Si el pedido queda listo para crear, e['paso'] == 'final'."""
-    resp = await vendedor_deepseek(d, bp, pagos, e, texto, historia)
-    if resp is not None:
-        return resp, "deepseek"
+    res = await vendedor_ia(d, bp, pagos, e, texto, historia, cred)
+    if res is not None:
+        resp, e2 = res
+        e.clear()
+        e.update(e2)
+        return resp, cred["proveedor"]
     resp = vendedor_simulado(d, bp, pagos, e, texto)
     if e["paso"] == "datos" and not faltantes(e, bp["modo"], pagos):
         e["paso"] = "final"

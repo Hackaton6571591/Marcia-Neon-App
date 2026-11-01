@@ -128,6 +128,8 @@ def extraer_simulado(d: dict, texto: str) -> dict:
 # ---------- extracción con DeepSeek ----------
 
 SYSTEM = """Sos Marcia, asistente de Marcia Neon App. Ayudás a dueños de negocios locales argentinos a crear su sistema de pedidos o turnos para no perder clientes por WhatsApp.
+Qué ofrece Marcia (no inventes otra cosa): tienda online propia con catálogo y pedidos (productos) o reservas de turnos sin superposición con sincronización de agenda (servicios); vendedor virtual con IA que atiende y toma pedidos 24/7; panel con pedidos, productos (manual, CSV o copiando desde una URL), medios de pago (efectivo, Mercado Pago, transferencia). Se arma en minutos charlando. Si preguntan precios del servicio: durante la hackatón es gratis para probar.
+Si el usuario se va de tema, respondé breve y amable y volvé a la pregunta de la etapa.
 Hablás en español rioplatense, cálida, breve (máx 2-3 oraciones), con algún emoji.
 Respondé SOLO un objeto JSON: {"respuesta": "<lo que le decís al usuario>", "datos": {<solo los campos que el usuario dio en ESTE mensaje>}}
 Campos posibles en "datos":
@@ -140,29 +142,23 @@ Nunca inventes datos que el usuario no dio. Tu respuesta debe pedir el siguiente
 
 
 async def extraer_deepseek(d: dict, texto: str, historia: list[dict]) -> tuple[dict, str] | None:
-    key = os.getenv("DEEPSEEK_API_KEY", "").strip()
-    if not key or os.getenv("IA_PROVIDER", "deepseek") == "simulado":
+    from . import ia
+    cred = ia.credenciales()
+    if not cred or not ia.cupo_disponible():
         return None
     contexto = {
         "etapa_actual": etapa_actual(d),
         "datos_ya_cargados": {k: v for k, v in d.items() if k in ("blueprint", "dolor", "nombre", "telefono", "items", "horarios")},
         "siguiente_pregunta_sugerida": pregunta(d),
     }
-    msgs = [{"role": "system", "content": SYSTEM},
-            {"role": "system", "content": "Contexto: " + json.dumps(contexto, ensure_ascii=False)}]
-    msgs += historia[-6:]
-    msgs.append({"role": "user", "content": texto})
+    msgs = [{"role": "system", "content": SYSTEM}] + ia.historia_json(historia[-4:]) + [
+        {"role": "system", "content": "Contexto: " + json.dumps(contexto, ensure_ascii=False, separators=(",", ":"))},
+        {"role": "user", "content": texto}]
     try:
-        async with httpx.AsyncClient(timeout=25) as c:
-            r = await c.post("https://api.deepseek.com/chat/completions",
-                             headers={"Authorization": f"Bearer {key}"},
-                             json={"model": os.getenv("DEEPSEEK_MODEL", "deepseek-chat"), "messages": msgs,
-                                   "response_format": {"type": "json_object"}, "temperature": 0.4, "max_tokens": 700})
-            r.raise_for_status()
-            out = json.loads(r.json()["choices"][0]["message"]["content"])
+        out = await ia.chat_json(cred, msgs, max_tokens=500, temperature=0.3)
         return validar(out.get("datos") or {}), str(out.get("respuesta") or "").strip()
     except Exception as ex:  # cae al simulado
-        log.warning("DeepSeek falló, uso simulado: %s", ex)
+        log.warning("IA (launcher) falló, uso simulado: %s", ex)
         return None
 
 
@@ -184,6 +180,12 @@ def validar(datos: dict) -> dict:
                 x = {"nombre": nombre, "precio": precio}
                 if it.get("duracion_min"):
                     x["duracion_min"] = max(5, min(600, int(it["duracion_min"])))
+                if isinstance(it.get("descripcion"), str) and it["descripcion"].strip():
+                    x["descripcion"] = it["descripcion"].strip()[:200]
+                if isinstance(it.get("imagen"), str) and re.fullmatch(r"/media/[a-z0-9-]{1,60}\.(png|jpg|webp)", it["imagen"]):
+                    x["imagen"] = it["imagen"]
+                if it.get("stock") not in (None, ""):
+                    x["stock"] = max(0, min(100000, int(it["stock"])))
                 if isinstance(it.get("categoria"), str) and it["categoria"].strip():
                     x["categoria"] = it["categoria"].strip()[:30]
                 items.append(x)
@@ -217,15 +219,19 @@ async def procesar(d: dict, texto: str, historia: list[dict], sesion: str = "") 
                 return d, "¡Qué lindo! 📸 Ya tomé tu logo e imagen para tu página. " + pregunta(d), "simulado"
         elif not URL_RE.sub("", m.string).strip(" ,."):
             return d, "No pude sacar imágenes de ese link (Instagram a veces lo bloquea) 😕 Igual podés subir tu logo después desde el panel. " + pregunta(d), "simulado"
-    res = await extraer_deepseek(d, texto, historia)
+    # Híbrido (lo más barato): si el mensaje encaja en el flujo, responden las reglas (costo 0).
+    # Solo si el usuario se sale del flujo (pregunta, duda, algo inesperado) responde DeepSeek, amigable.
+    simulado = extraer_simulado(d, texto)
+    fuera_de_flujo = (not simulado) or (etapa_actual(d) == "rubro" and not detectar_blueprint(texto)) or \
+        bool(re.search(r"\?|\b(que es|qué es|cuanto cuesta|cuánto cuesta|precio|como funciona|cómo funciona|no entiendo|ayuda|para que|para qué|sirve|gratis|seguro)\b", texto, re.I))
+    res = await extraer_deepseek(d, texto, historia) if fuera_de_flujo else None
     proveedor = "deepseek"
     if res is None:
-        nuevo, respuesta, proveedor = extraer_simulado(d, texto), "", "simulado"
+        nuevo, respuesta, proveedor = simulado, "", "simulado"
     else:
         nuevo, respuesta = res
-        # red de seguridad: si la IA no extrajo nada en etapas estructuradas, probamos el parser local
-        if not nuevo:
-            nuevo = extraer_simulado(d, texto) if etapa_actual(d) in ("rubro", "oferta") else {}
+        if not nuevo and etapa_actual(d) in ("oferta",):
+            nuevo = simulado
     antes = etapa_actual(d)
     d = {**d, **nuevo}
     if d.get("blueprint") and "turnos" == d["blueprint"]:

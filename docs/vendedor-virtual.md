@@ -27,6 +27,27 @@ Cada tienda publicada (`/n/{slug}`) tiene un **vendedor virtual** integrado al c
 
 **Seguridad:** la IA solo propone acciones. El servidor valida índices y cantidades, **calcula precios y totales** con el catálogo guardado y crea el pedido solo si el cliente confirmó y están todos los datos. Turnos: misma validación de superposición que el formulario. Límite: 30 mensajes/min por IP, 60 por charla.
 
+## IA real activa (DeepSeek) — controles anti-alucinación y costo
+- **Modelo más barato**: `deepseek-chat`, temperatura 0.3, máx. 300 tokens de salida, últimas 6 líneas de historial.
+- **Caché de contexto**: reglas + ficha del negocio van primero y no cambian → la mayor parte de la entrada se cobra como *cache hit* (medido: ~1.200 tokens de entrada por mensaje, ~900–1.000 cacheados; ~50 de salida).
+- **Tope diario** de tokens de la clave de la plataforma (`IA_TOPE_TOKENS_DIA`, 400.000 por defecto). Al superarlo, el vendedor sigue con reglas.
+- **Ficha compacta = única fuente de verdad**: `índice|nombre|precio [categoría] stock/AGOTADO (descripción)`.
+- **Stock**: el servidor no deja agregar productos agotados ni más unidades que el stock, avisa al cliente y descuenta stock al crear el pedido.
+- **Precios verificados**: si la respuesta de la IA menciona un `$` que no existe en el catálogo, subtotales, total o info del negocio, se descarta y responde el modo reglas.
+- **Resumen y total los escribe siempre el servidor** (se borra cualquier resumen que escriba la IA).
+- **Confirmación obligatoria**: al terminar ("nada más", "listo") el servidor muestra el resumen con total y pregunta si confirma o cambia. Si el cliente cambia algo, se vuelve a confirmar. Con la confirmación y todos los datos, el pedido se crea.
+- **Datos juntos**: "Rocky, retiro, 1155554444, efectivo" → el servidor completa lo que la IA no haya extraído.
+- **Historial en formato JSON** para evitar respuestas vacías del modo JSON de DeepSeek, y 1 reintento.
+- Si la IA falla por cualquier motivo → modo reglas (la venta nunca se corta).
+
+**Probado con IA real (2026-11-01):** "pizza de anchoas" → "no la tengo, te ofrezco Calabresa o Especial"; 5 de humita con stock 3 → avisa y anota 3; flan agotado → ofrece helado; agregar → resumen → cambiar → resumen → confirmar → datos juntos → pedido #10.
+
+## IA propia de cada negocio
+Panel → Integraciones → **Inteligencia artificial del vendedor**: IA de Marcia (incluida), *mi cuenta de DeepSeek* o *mi cuenta de OpenAI*. La clave se prueba antes de guardar (1 token), se guarda en la tabla `secretos` (separada de los datos públicos del negocio) y **nunca se devuelve**: el panel solo muestra `••••` + últimos 4. Si el negocio tiene clave propia, su consumo no cuenta para el tope de la plataforma.
+
+## Launcher híbrido
+En la landing/launcher, si el mensaje encaja en el flujo responden las reglas (costo 0). Solo cuando el usuario se sale del flujo (preguntas, dudas: "¿esto cuesta plata?") responde DeepSeek, amable, y vuelve a encaminar.
+
 ## Activar DeepSeek (la clave NUNCA va al repo)
 Por SSH en el server (no pegarla en chats):
 ```bash

@@ -45,3 +45,9 @@ Registro cronológico. Cada acción relevante se agrega acá.
 - **Copiar menú desde URL** (`app/importar.py`) y **logo/portada desde la web o Instagram** (launcher y panel), con protección SSRF. Página de ejemplo para la demo: `/static/menu-demo.html`.
 - Se corrigió el reconocimiento de productos (gana el que más palabras coincide, contexto entre segmentos, descriptores como "grande" no cuentan).
 - La clave de DeepSeek se carga **solo** en `.env` del server por SSH; nunca en el repo ni en el chat.
+- **DeepSeek activado** con la clave de la demo (solo en `.env`, permisos 600, ignorado por git). ⚠️ La clave se compartió por chat: **rotarla después de la hackatón**.
+- Cliente de IA común (`app/ia.py`): credenciales del negocio o de la plataforma, modelo más barato, caché de contexto, tope diario, reintento y logs de tokens.
+- Vendedor con IA: stock (agotado / límite / descuento automático), verificación de precios, resumen y total del servidor, confirmación obligatoria, completado de datos. Probado de punta a punta con IA real (pedidos #8 a #10).
+- **IA propia por negocio** desde el panel (DeepSeek u OpenAI), clave probada, guardada aparte y nunca devuelta.
+- **Launcher híbrido**: reglas para el flujo normal, DeepSeek solo cuando el usuario se sale del flujo.
+- Productos con **foto y descripción** (subida desde el panel; la tienda las muestra y el vendedor las conoce) y **stock**.

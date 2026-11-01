@@ -228,8 +228,9 @@ async def _bajar_fotos(prods: list[dict], prefijo: str, maximo: int = 100):
     async def una(i, p):
         async with sem:
             if p.get("_img"):
-                ruta = await _bajar_imagen(urljoin("https://x/", p["_img"]) if p["_img"].startswith("//") else p["_img"],
-                                           f"{prefijo}-{i}")
+                u = p["_img"]
+                u = "https:" + u if u.startswith("//") else u
+                ruta = await _bajar_imagen(u, f"{prefijo}-{i}")
                 if ruta and not ruta.endswith((".svg", ".ico", ".gif")):
                     p["imagen"] = ruta
     await asyncio.gather(*(una(i, p) for i, p in enumerate(prods[:maximo])))
@@ -237,12 +238,50 @@ async def _bajar_fotos(prods: list[dict], prefijo: str, maximo: int = 100):
         p.pop("_img", None)
 
 
+def desde_jsonld(page: str) -> list[dict]:
+    """Productos en datos estructurados schema.org (Tiendanube, Shopify, WooCommerce, VTEX, etc.)."""
+    prods, vistos = [], set()
+
+    def visitar(o):
+        if isinstance(o, list):
+            for x in o:
+                visitar(x)
+            return
+        if not isinstance(o, dict):
+            return
+        t = o.get("@type")
+        tipos = t if isinstance(t, list) else [t]
+        if "Product" in tipos:
+            of = o.get("offers")
+            if isinstance(of, list):
+                of = of[0] if of else {}
+            precio = _num((of or {}).get("price") or (of or {}).get("lowPrice")) if isinstance(of, dict) else None
+            if precio and o.get("name"):
+                p = {"name": o["name"], "price": precio, "image": o.get("image"),
+                     "category": o.get("category"), "description": o.get("description")}
+                if (pp := _producto(p)) and pp["nombre"] not in vistos:
+                    vistos.add(pp["nombre"])
+                    prods.append(pp)
+        for k in ("@graph", "itemListElement", "item", "mainEntity"):
+            if k in o:
+                visitar(o[k])
+
+    for blk in re.findall(r'<script[^>]+application/ld\+json[^>]*>(.*?)</script>', page, re.I | re.S):
+        try:
+            visitar(json.loads(html.unescape(blk.strip())))
+        except Exception:
+            continue
+    return prods
+
+
 async def importar(url: str, servicio: bool, prefijo: str = "imp") -> tuple[list[dict], str]:
     if not re.match(r"^https?://", url):
         url = "https://" + url
     page = await descargar(url)
-    prods = await desde_apis(url, page)
+    prods = desde_jsonld(page)
     origen = "api"
+    if len(prods) < 3:
+        prods = await desde_apis(url, page) or prods
     if not prods:
         texto = a_texto(page)
         prods = await con_ia(texto, servicio) or []
@@ -284,7 +323,7 @@ def _metas(page: str, base: str) -> dict:
             m = re.search(rf'<meta[^>]+(?:property|name)=["\']{re.escape(n)}["\'][^>]*content=["\']([^"\']+)', page, re.I) or \
                 re.search(rf'<meta[^>]+content=["\']([^"\']+)["\'][^>]*(?:property|name)=["\']{re.escape(n)}["\']', page, re.I)
             if m:
-                return urljoin(base, html.unescape(m.group(1)))
+                return html.unescape(m.group(1)).strip()
         return None
     icono = None
     for rel in ("apple-touch-icon", "icon", "shortcut icon"):
@@ -319,7 +358,8 @@ def _metas(page: str, base: str) -> dict:
     titulo = meta("og:title", "twitter:title")
     if not titulo and (m := re.search(r"<title[^>]*>([^<]{1,120})", page, re.I)):
         titulo = html.unescape(m.group(1)).strip()
-    return {"imagen": meta("og:image", "og:image:url", "twitter:image"), "icono": icono, "logo": logo, "sitio": sitio,
+    img = meta("og:image", "og:image:url", "twitter:image")
+    return {"imagen": urljoin(base, img) if img else None, "icono": icono, "logo": logo, "sitio": sitio,
             "titulo": titulo, "descripcion": meta("og:description", "description")}
 
 
@@ -356,7 +396,10 @@ async def extraer_marca(url: str, prefijo: str) -> dict:
     out = {"web": url}
     if m.get("titulo"):
         out["titulo_web"] = m["titulo"][:120]
-    nombre = m.get("sitio") or (re.split(r"\s+[—|\-–:·]\s+", m["titulo"])[0] if m.get("titulo") else None)
+    nombre = m.get("sitio") or m.get("titulo")
+    if nombre:
+        nombre = re.split(r"\s+[—|\-–:·•]\s+|\s*\|\s*", nombre)[0]
+        nombre = re.sub(r"\s*\(@[^)]*\)", "", nombre).strip()
     if nombre and 1 < len(nombre.strip()) <= 40:
         out["nombre_web"] = nombre.strip()
     # Instagram / redes: og:image es la foto de perfil -> logo. En webs: ícono = logo, og:image = portada.

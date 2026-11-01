@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
-from . import ia, importar, launcher, mercadopago, vendedor
+from . import ia, importar, launcher, logos, mercadopago, vendedor
 from .blueprints import ALIAS_CHIPS, BLUEPRINTS
 
 BASE = Path(__file__).parent
@@ -63,6 +63,8 @@ def init_db():
             estado TEXT DEFAULT 'nuevo', creado INT);
         CREATE INDEX IF NOT EXISTS ix_pedidos_negocio ON pedidos(negocio_id, creado);
         """)
+        if "deshacer" not in [r[1] for r in c.execute("PRAGMA table_info(sesiones)")]:
+            c.execute("ALTER TABLE sesiones ADD COLUMN deshacer TEXT")
         c.execute("CREATE TABLE IF NOT EXISTS secretos(negocio_id INT PRIMARY KEY, proveedor TEXT, api_key TEXT, modelo TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS chats(id TEXT PRIMARY KEY, negocio_id INT, estado TEXT, historia TEXT, mensajes INT DEFAULT 0, creado INT)")
         cols = [r[1] for r in c.execute("PRAGMA table_info(pedidos)")]
@@ -142,12 +144,53 @@ async def mensaje(m: Mensaje, request: Request):
         sid, d, hist, n = _cargar_sesion(c, m.sesion)
     if n >= 40:
         raise HTTPException(429, "Llegaste al límite de mensajes de esta sesión.")
+    if DESHACER_RE.search(m.texto.strip()):
+        return _deshacer(sid)
+    _snapshot(sid, d)
     d, respuesta, proveedor = await launcher.procesar(d, m.texto.strip(), hist, sid)
     hist = (hist + [{"role": "user", "content": m.texto[:1000]}, {"role": "assistant", "content": respuesta}])[-12:]
     with db() as c:
         c.execute("UPDATE sesiones SET datos=?, historia=?, mensajes=mensajes+1 WHERE id=?",
                   (json.dumps(d, ensure_ascii=False), json.dumps(hist, ensure_ascii=False), sid))
     return _estado(sid, d, proveedor, respuesta)
+
+
+# ---------- volver atrás ----------
+
+DESHACER_RE = re.compile(r"^\s*(volver|volv[eé]|deshacer|desh[aá]celo|atr[aá]s|para atr[aá]s|me equivoqu[eé]|undo)\b", re.I)
+
+
+def _snapshot(sid: str, d: dict):
+    """Guarda el estado previo (hasta 15 pasos) para poder volver atrás."""
+    with db() as c:
+        row = c.execute("SELECT deshacer FROM sesiones WHERE id=?", (sid,)).fetchone()
+        pila = json.loads(row["deshacer"] or "[]") if row else []
+        if not pila or pila[-1] != d:
+            pila = (pila + [d])[-15:]
+        c.execute("UPDATE sesiones SET deshacer=? WHERE id=?", (json.dumps(pila, ensure_ascii=False), sid))
+
+
+def _deshacer(sid: str) -> dict:
+    with db() as c:
+        row = c.execute("SELECT datos, deshacer, historia FROM sesiones WHERE id=?", (sid,)).fetchone()
+        if not row:
+            raise HTTPException(404)
+        pila = json.loads(row["deshacer"] or "[]")
+        if not pila:
+            d = json.loads(row["datos"])
+            return _estado(sid, d, "simulado", "No hay nada para deshacer 🙂 " + launcher.pregunta(d))
+        d = pila.pop()
+        resp = "↩️ Listo, volví un paso atrás. " + launcher.pregunta(d)
+        hist = (json.loads(row["historia"]) + [{"role": "assistant", "content": resp}])[-12:]
+        c.execute("UPDATE sesiones SET datos=?, deshacer=?, historia=? WHERE id=?",
+                  (json.dumps(d, ensure_ascii=False), json.dumps(pila, ensure_ascii=False), json.dumps(hist, ensure_ascii=False), sid))
+    return _estado(sid, d, "simulado", resp)
+
+
+@app.post("/api/launcher/sesion/{sid}/deshacer")
+def deshacer(sid: str, request: Request):
+    limitar(request, 30, "deshacer")
+    return _deshacer(sid)
 
 
 @app.get("/api/launcher/sesion/{sid}")
@@ -839,6 +882,7 @@ async def launcher_foto(sid: str, request: Request):
     if not row:
         raise HTTPException(404)
     d = json.loads(row["datos"])
+    _snapshot(sid, d)
     try:
         items = await importar.desde_foto(data, tipo, d.get("blueprint") == "turnos", ia.credenciales())
     except Exception:
@@ -864,6 +908,7 @@ async def launcher_logo(sid: str, request: Request):
     if not row:
         raise HTTPException(404)
     d = json.loads(row["datos"])
+    _snapshot(sid, d)
     (DATA / "media").mkdir(exist_ok=True)
     nombre = f"s{re.sub(r'[^a-z0-9]', '', sid)[:12]}-logo-{secrets.token_hex(3)}.{ {'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp'}[tipo] }"
     (DATA / "media" / nombre).write_bytes(data)
@@ -871,6 +916,79 @@ async def launcher_logo(sid: str, request: Request):
     with db() as c:
         c.execute("UPDATE sesiones SET datos=? WHERE id=?", (json.dumps(d, ensure_ascii=False), sid))
     return _estado(sid, d, "simulado", "📸 ¡Listo, ya tengo tu logo! " + launcher.pregunta(d))
+
+
+# ---------- asistente de logos ----------
+
+class ElegirLogo(BaseModel):
+    indice: int = Field(..., ge=0, le=3)
+
+
+async def _generar_logos(d: dict, cred) -> list[str]:
+    if not d.get("nombre"):
+        raise HTTPException(400, "Primero necesito el nombre del negocio.")
+    bp = BLUEPRINTS.get(d.get("blueprint") or "comercio", BLUEPRINTS["comercio"])
+    rubro = d.get("rubro_texto") or bp["nombre"]
+    c1, c2, fondo, lema = await logos.sugerir(d["nombre"], rubro, cred)
+    emoji = ilus({"nombre": rubro}, bp["emoji"])["emoji"]
+    d["_logo_params"] = {"nombre": d["nombre"], "emoji": emoji, "c1": c1, "c2": c2, "fondo": fondo, "lema": lema}
+    return logos.opciones(**d["_logo_params"])
+
+
+def _guardar_logo_svg(d: dict, indice: int, prefijo: str) -> str:
+    pr = d.get("_logo_params")
+    if not pr:
+        raise HTTPException(400, "Primero generá las opciones.")
+    svg = logos.opciones(**pr)[indice]
+    (DATA / "media").mkdir(exist_ok=True)
+    nombre = f"{prefijo}-logo-{secrets.token_hex(3)}.svg"
+    (DATA / "media" / nombre).write_text(svg, encoding="utf-8")
+    return f"/media/{nombre}"
+
+
+@app.post("/api/launcher/sesion/{sid}/logos")
+async def launcher_logos(sid: str, request: Request):
+    limitar(request, 6, "logos")
+    with db() as c:
+        row = c.execute("SELECT datos FROM sesiones WHERE id=?", (sid,)).fetchone()
+    if not row:
+        raise HTTPException(404)
+    d = json.loads(row["datos"])
+    ops = await _generar_logos(d, ia.credenciales() if ia.cupo_disponible() else None)
+    with db() as c:
+        c.execute("UPDATE sesiones SET datos=? WHERE id=?", (json.dumps(d, ensure_ascii=False), sid))
+    return {"opciones": ops, "lema": d["_logo_params"]["lema"]}
+
+
+@app.post("/api/launcher/sesion/{sid}/logo-elegir")
+def launcher_logo_elegir(sid: str, body: ElegirLogo):
+    with db() as c:
+        row = c.execute("SELECT datos FROM sesiones WHERE id=?", (sid,)).fetchone()
+    if not row:
+        raise HTTPException(404)
+    d = json.loads(row["datos"])
+    _snapshot(sid, d)
+    d["logo"] = _guardar_logo_svg(d, body.indice, "s" + re.sub(r"[^a-z0-9]", "", sid)[:12])
+    with db() as c:
+        c.execute("UPDATE sesiones SET datos=? WHERE id=?", (json.dumps(d, ensure_ascii=False), sid))
+    return _estado(sid, d, "simulado", "✨ ¡Me encanta! Ese es tu logo. " + launcher.pregunta(d))
+
+
+@app.post("/api/panel/{slug}/logos")
+async def panel_logos(slug: str, request: Request, t: str = ""):
+    limitar(request, 6, "logos")
+    row, d, bp = _auth(slug, t)
+    ops = await _generar_logos(d, ia.credenciales(_secreto(row["id"])))
+    _guardar(row["id"], d)
+    return {"opciones": ops, "lema": d["_logo_params"]["lema"]}
+
+
+@app.post("/api/panel/{slug}/logo-elegir")
+def panel_logo_elegir(slug: str, body: ElegirLogo, t: str = ""):
+    row, d, bp = _auth(slug, t)
+    d["logo"] = _guardar_logo_svg(d, body.indice, f"n{row['id']}")
+    _guardar(row["id"], d)
+    return {"logo": d["logo"]}
 
 
 @app.post("/api/panel/{slug}/foto-menu")

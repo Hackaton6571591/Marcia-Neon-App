@@ -40,6 +40,19 @@ def respuesta_preparada(t: str) -> str:
     return "¡Buena pregunta! Te la respondo enseguida con más detalle desde el panel 😊 Mientras tanto sigamos armando tu solución."
 
 
+CONFIRMA_RE = re.compile(r"^(ok|okey|okay|oki|esta ok|está ok|esta bien|está bien|dale|si|sí|perfecto|genial|listo|bien|joya|"
+                         r"de una|barbaro|bárbaro|buenisimo|buenísimo|re bien|todo bien|correcto|seguimos|sigamos|continuar|siguiente)[\s!.👍🙌]*$", re.I)
+
+
+def pregunta_corta(d: dict) -> str:
+    e = etapa_actual(d)
+    if e == "negocio":
+        return "¿Cómo se llama tu negocio?"
+    if e == "horarios":
+        return "¿Qué días y en qué horario atendés? Ej: *lunes a sábado de 9 a 20*"
+    return pregunta(d)
+
+
 def etapa_actual(d: dict) -> str:
     if not d.get("blueprint"):
         return "rubro"
@@ -279,6 +292,9 @@ async def procesar(d: dict, texto: str, historia: list[dict], sesion: str = "") 
         aviso_import = " ".join(partes)
 
     aviso_import = locals().get("aviso_import", "")
+    # "ok", "está bien", "dale": confirmación -> NO es un dato del negocio; seguimos con una pregunta corta
+    if CONFIRMA_RE.match(texto.strip()) and etapa_actual(d) not in ("revision",):
+        return d, "¡Genial! 🙌 " + pregunta_corta(d), "simulado"
     # Híbrido (lo más barato): si el mensaje encaja en el flujo, responden las reglas (costo 0).
     # Solo si el usuario se sale del flujo (pregunta, duda, algo inesperado) responde DeepSeek, amigable.
     simulado = extraer_simulado(d, texto)

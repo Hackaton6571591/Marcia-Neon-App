@@ -1106,6 +1106,10 @@ async def _productos_de_folleto(data: bytes, tipo: str, d: dict, cred) -> int:
         nuevos = await importar.desde_foto(data, tipo, d.get("blueprint") == "turnos", cred, folleto=True)
     except Exception:
         return 0
+    if nuevos and nuevos[0].get("_negocio") and not d.get("nombre"):
+        d["nombre"] = nuevos[0]["_negocio"]
+    for i in nuevos:
+        i.pop("_negocio", None)
     vistos = {launcher_norm(i["nombre"]) for i in d.get("items", [])}
     agregar = [i for i in nuevos if launcher_norm(i["nombre"]) not in vistos]
     if agregar:
@@ -1145,7 +1149,7 @@ async def launcher_folleto(sid: str, request: Request):
     with db() as c:
         c.execute("UPDATE sesiones SET datos=? WHERE id=?", (json.dumps(d, ensure_ascii=False), sid))
     return _estado(sid, d, "deepseek", f"📋 ¡Leí tu folleto! Sumé **{n} producto{'s' if n != 1 else ''}** a tu catálogo ({len(d['items'])} en total). "
-                   "Revisalos en la vista previa. " + launcher.pregunta(d))
+                   "Revisalos en la vista previa ✅\n\n" + launcher.pregunta_corta(d))
 
 
 @app.post("/api/panel/{slug}/folleto")

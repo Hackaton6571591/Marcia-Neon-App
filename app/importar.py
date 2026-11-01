@@ -363,11 +363,14 @@ async def desde_foto(datos: bytes, mime: str, servicio: bool, cred: dict | None,
                "(usá el texto de la promo como nombre, ej: 'Promo martes: 2 muzzas + Coca 1,5L'; categoría 'Promos' si es una promo). ")
               if folleto else "Esta es la foto de un menú/lista de precios de un negocio. Extraé TODOS los productos con su precio. ")
     prompt += ('Respondé SOLO JSON: {"items":[{"nombre":str,"precio":int (pesos, sin puntos),"categoria":str'
-               + (',"duracion_min":int' if servicio else "") + "}]}. Si no hay precios, devolvé items vacío. No inventes nada que no esté en la imagen.")
+               + (',"duracion_min":int' if servicio else "") + "}],\"negocio\":\"nombre del negocio si aparece en la imagen, si no vacío\"}. Si no hay precios, devolvé items vacío. No inventes nada que no esté en la imagen.")
     msgs = [{"role": "user", "content": [{"type": "text", "text": prompt},
              {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{base64.b64encode(datos).decode()}"}}]}]
     out = await ia.chat_json(cred, msgs, max_tokens=2500, temperature=0, timeout=60)
-    return validar(out).get("items", [])
+    items = validar(out).get("items", [])
+    if items and isinstance(out.get("negocio"), str) and 1 < len(out["negocio"].strip()) <= 40:
+        items[0]["_negocio"] = out["negocio"].strip()  # nombre del negocio visible en la imagen (si lo hay)
+    return items
 
 
 # ---------- marca: logo e imagen desde la web o Instagram ----------

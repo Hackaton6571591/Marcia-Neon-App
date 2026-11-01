@@ -51,3 +51,9 @@ Registro cronológico. Cada acción relevante se agrega acá.
 - **IA propia por negocio** desde el panel (DeepSeek u OpenAI), clave probada, guardada aparte y nunca devuelta.
 - **Launcher híbrido**: reglas para el flujo normal, DeepSeek solo cuando el usuario se sale del flujo.
 - Productos con **foto y descripción** (subida desde el panel; la tienda las muestra y el vendedor las conoce) y **stock**.
+- **Panel de pedidos profesional**: tablero en vivo (actualiza cada 8 s, sonido y aviso en la pestaña con pedidos nuevos), filtros por estado, estados `nuevo → confirmado → en preparación → listo → en camino → entregado / cancelado` (turnos: `completado / no asistió`), pago pendiente/pagado, cancelar devuelve stock. Por pedido: **avisar al cliente por WhatsApp** (con link de seguimiento), **comanda a cocina por WhatsApp o email**, **imprimir comanda**.
+- **Webhook (API)** por negocio: `POST` JSON en `pedido.creado` y `pedido.estado`, firmado HMAC-SHA256 (`X-Marcia-Firma`), solo URLs https públicas.
+- **Seguimiento en vivo para el cliente** (`/n/{slug}/pedido/{id}?k=…`), estilo apps de delivery: estado actual, línea de tiempo con horas, se actualiza solo; no expone datos de contacto. Link incluido al confirmar (formulario y chat).
+- **Lector de tiendas genérico** (`importar.desde_apis`): detecta APIs JSON de productos (headless, Shopify `/products.json`, WooCommerce Store API) y extrae nombre, precio, categoría, descripción y fotos (las descarga). Probado con una tienda real: 24 productos, 23 con foto, sin gastar IA. Respaldo: DeepSeek sobre el texto y heurística.
+- **Foto del menú → productos** con DeepSeek (la API acepta imágenes; verificado). En el launcher (botón 📷) y en el panel. Probado: 4/4 productos con precio y categoría en 1,4 s.
+- Instagram: no se puede leer sin login. Se descartó simular bots para saltear el bloqueo; la vía correcta es la **Instagram Graph API** oficial (roadmap). Mientras tanto se sube el logo.

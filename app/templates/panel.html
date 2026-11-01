@@ -15,6 +15,30 @@ h1{margin:6px 0 4px;letter-spacing:-.02em}
 .det{color:var(--muted);font-size:.9rem}
 .when{color:var(--lime);font-weight:700;font-size:.9rem}
 .empty{padding:40px;text-align:center;color:var(--muted)}
+.fbar{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.filtros{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;flex:1}
+.filtros button{flex:none;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:999px;padding:7px 12px;font:inherit;font-size:.84rem;cursor:pointer;min-height:36px}
+.filtros button.on{background:var(--grad);color:#0b0716;border-color:transparent;font-weight:700}
+.filtros b{opacity:.75;margin-left:4px}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);flex:none}
+.live i{width:7px;height:7px;border-radius:50%;background:var(--lime);box-shadow:0 0 8px var(--lime);animation:pl 1.6s infinite}
+@keyframes pl{50%{opacity:.3}}
+.oc{padding:16px;margin-bottom:12px;border-left:4px solid var(--c,var(--line))}
+.oc.nuevo{--c:#ff3dcb;box-shadow:0 0 30px -14px #ff3dcb}.oc.confirmado{--c:#8b5cff}.oc.preparando{--c:#ffb020}.oc.listo{--c:#00e5ff}
+.oc.en_camino{--c:#3d8bff}.oc.entregado,.oc.completado{--c:#b6ff3d;opacity:.75}.oc.cancelado,.oc.ausente{--c:#ff6b8b;opacity:.6}
+.oc .top1{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.oc .n{font-weight:900;font-size:1.15rem}
+.badge{padding:3px 10px;border-radius:999px;font-size:.75rem;font-weight:800;background:color-mix(in srgb,var(--c) 22%,transparent);color:var(--c);border:1px solid color-mix(in srgb,var(--c) 50%,transparent)}
+.oc .ago{color:var(--muted);font-size:.8rem;margin-left:auto}
+.oc .cli{margin:8px 0 4px}
+.oc ul{margin:6px 0;padding-left:18px}.oc li{margin:2px 0}
+.oc .meta{color:var(--muted);font-size:.88rem;display:grid;gap:2px}
+.oc .tot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+.oc .acc{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.oc .acc .btn{min-height:40px;padding:8px 14px;font-size:.88rem}
+.pay{cursor:pointer;border:0;background:none;font:inherit;padding:0}
+.ok-pay{color:var(--lime);font-weight:800}.no-pay{color:#ffb020;font-weight:700}
+@media print{body *{visibility:hidden}.printing,.printing *{visibility:visible}.printing{position:absolute;inset:0;background:#fff;color:#000;border:0;box-shadow:none}.printing .acc,.printing .ago{display:none}}
 .box{padding:18px;margin-bottom:16px}
 .box h3{margin:0 0 4px}
 .irow{display:grid;grid-template-columns:1fr 110px 120px {% if bp.modo == 'turnos' %}90px {% else %}90px {% endif %}44px;gap:8px;margin-bottom:8px}
@@ -56,28 +80,13 @@ code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(-
   </div>
 
   <section data-sec="pedidos">
-    {% set total = pedidos|sum(attribute='total') %}
     <div class="kpis">
-      <div class="kpi card"><span class="muted">{{ 'Turnos' if bp.modo == 'turnos' else 'Pedidos' }}</span><b>{{ pedidos|length }}</b></div>
-      <div class="kpi card"><span class="muted">Facturación</span><b class="price">${{ "{:,}".format(total).replace(",", ".") }}</b></div>
+      <div class="kpi card"><span class="muted">Activos</span><b id="kAct">–</b></div>
+      <div class="kpi card"><span class="muted">Hoy</span><b class="price" id="kHoy">–</b></div>
       <div class="kpi card"><span class="muted">Perdidos</span><b style="color:var(--lime)">0 🎯</b></div>
     </div>
-    <div class="acts" style="margin:0 0 14px"><button class="btn btn-ghost" onclick="location.reload()">🔄 Actualizar</button></div>
-    {% for p in pedidos %}
-    <div class="ped card">
-      <div class="num">#{{ p.id }}</div>
-      <div>
-        <b>{{ p.cliente }}</b>{% if p.contacto %} <span class="muted">· {{ p.contacto }}</span>{% endif %}
-        {% if p.cuando %}<div class="when">📅 {{ p.cuando }}</div>{% endif %}
-        <div class="det">{% for x in p.detalle %}{{ x.cantidad }}× {{ x.nombre }}{% if not loop.last %} · {% endif %}{% endfor %}</div>
-        {% if p.nota %}<div class="det">📝 {{ p.nota }}</div>{% endif %}
-        {% if p.pago %}<div class="det">💳 {{ {'efectivo':'Efectivo','mercadopago':'Mercado Pago','transferencia':'Transferencia'}.get(p.pago, p.pago) }}{% if p.estado == 'pagado' %} <b style="color:var(--lime)">· ✓ PAGADO</b>{% endif %}</div>{% endif %}
-      </div>
-      <div class="price">${{ "{:,}".format(p.total).replace(",", ".") }}</div>
-    </div>
-    {% else %}
-    <div class="empty card">Todavía no hay {{ 'turnos' if bp.modo == 'turnos' else 'pedidos' }}. Compartí tu link: <a href="/n/{{ slug }}">/n/{{ slug }}</a></div>
-    {% endfor %}
+    <div class="fbar"><div class="filtros" id="filtros"></div><span class="live"><i></i>En vivo</span></div>
+    <div id="lista"></div>
   </section>
 
   <section data-sec="productos" hidden>
@@ -116,8 +125,17 @@ code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(-
       </div>
     </div>
     <div class="box card">
+      <h3>📷 Subir foto de tu menú <span class="tag"><i></i>IA</span></h3>
+      <p class="muted" style="margin-top:0">Sacale una foto a tu carta, pizarra o lista de precios y la IA carga los productos sola.</p>
+      <div class="acts">
+        <label class="btn btn-neon" style="cursor:pointer">📷 Elegir foto<input type="file" id="fmFile" accept="image/png,image/jpeg,image/webp" capture="environment" hidden></label>
+        <label class="chk muted"><input type="checkbox" id="fmReemp"> Reemplazar los actuales</label>
+        <span class="msg" id="fmMsg"></span>
+      </div>
+    </div>
+    <div class="box card">
       <h3>Copiar menú desde una URL <span class="tag"><i></i>IA</span></h3>
-      <p class="muted" style="margin-top:0">Pegá el link de tu menú actual (tu web, una carta online) y Marcia lee los productos y precios con IA. Revisalos antes de guardar.</p>
+      <p class="muted" style="margin-top:0">Pegá el link de tu tienda o menú online (Shopify, WooCommerce, Tiendanube, tu web) y Marcia copia productos, precios, categorías y fotos.</p>
       <input id="mUrl" type="url" inputmode="url" placeholder="https://tu-pizzeria.com/menu">
       <div class="acts">
         <label class="chk muted"><input type="checkbox" id="mReemp"> Reemplazar los actuales</label>
@@ -165,6 +183,15 @@ code{background:#0d0b1a;padding:2px 6px;border-radius:6px;border:1px solid var(-
       <p class="muted" style="font-size:.85rem;margin-bottom:0"><b>Google Calendar:</b> Otros calendarios → + → Desde URL → pegar.<br><b>iPhone/Mac:</b> Calendario → Archivo → Nueva suscripción.<br><b>Outlook:</b> Agregar calendario → Suscribirse desde la web.<br>Próximamente: sincronización en las dos direcciones con Google Calendar (bloquear horarios desde tu agenda).</p>
     </div>
     {% endif %}
+    <div class="box card pay">
+      <h3>🍳 Despacho de pedidos (cocina / preparación)</h3>
+      <p class="muted" style="margin:0">Desde cada pedido podés mandar la comanda por WhatsApp o email con un toque. Y si tenés un sistema (cocina, ERP, delivery), lo recibe automático por API.</p>
+      <label>WhatsApp de cocina / preparación<input id="dWa" inputmode="tel" placeholder="ej: 11 5555 1234" value="{{ despacho.whatsapp or '' }}"></label>
+      <label>Email de cocina / preparación<input id="dMail" type="email" placeholder="cocina@tunegocio.com" value="{{ despacho.email or '' }}"></label>
+      <label>Webhook (API): URL https de tu sistema<input id="dHook" type="url" placeholder="https://tu-sistema.com/webhooks/pedidos" value="{{ webhook.url or '' }}"></label>
+      <p class="muted" style="font-size:.82rem;margin:0">Enviamos <code>POST</code> JSON en cada pedido nuevo y cambio de estado (<code>pedido.creado</code>, <code>pedido.estado</code>), firmado con HMAC-SHA256 en el header <code>X-Marcia-Firma</code>. Secreto: <code id="dSec">{{ webhook.secreto or '(se genera al guardar)' }}</code></p>
+      <div class="acts"><button class="btn btn-neon" id="dSave">Guardar</button><span class="msg" id="dMsg"></span></div>
+    </div>
     <div class="box card pay">
       <h3>🧠 Inteligencia artificial del vendedor</h3>
       <p class="muted" style="margin:0">Por defecto usás la IA de Marcia (DeepSeek). Si querés, conectá <b>tu propia API key</b> y el vendedor virtual usa tu cuenta. La clave se guarda cifrada en el servidor y nunca se vuelve a mostrar.</p>
@@ -228,6 +255,8 @@ $('#bGo').onclick=async()=>{const u=$('#bUrl').value.trim();if(!u){msg($('#bMsg'
     if(j.logo)$('#logoPrev').src=j.logo;msg($('#bMsg'),'✓ Listo, ya se ve en tu tienda',1)}catch(e){msg($('#bMsg'),e.message)}finally{$('#bGo').disabled=false}};
 $('#bFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;
   try{const j=await api('logo',{method:'POST',headers:{'Content-Type':f.type},body:f});$('#logoPrev').src=j.logo;msg($('#bMsg'),'✓ Logo actualizado',1)}catch(er){msg($('#bMsg'),er.message)}};
+$('#fmFile').onchange=async ev=>{const f=ev.target.files[0];if(!f)return;msg($('#fmMsg'),'Leyendo tu menú con IA…',1);
+  try{const j=await api('foto-menu'+($('#fmReemp').checked?'?reemplazar=true':''),{method:'POST',headers:{'Content-Type':f.type},body:f});items=j.items;renderItems();msg($('#fmMsg'),`✓ ${j.importados} productos cargados`,1)}catch(e){msg($('#fmMsg'),e.message)}finally{ev.target.value=''}};
 $('#mGo').onclick=async()=>{const u=$('#mUrl').value.trim();if(!u){msg($('#mMsg'),'Pegá una URL');return}
   $('#mGo').disabled=true;msg($('#mMsg'),'Leyendo la página…',1);
   try{const j=await api('importar-url',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:u,reemplazar:$('#mReemp').checked})});
@@ -237,6 +266,62 @@ $('#iaProv').onchange=()=>{$('#iaKeyBox').hidden=$('#iaProv').value==='plataform
 $('#iaSave').onclick=async()=>{$('#iaSave').disabled=true;msg($('#iaMsg'),'Probando conexión…',1);
   try{const j=await api('ia',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({proveedor:$('#iaProv').value,api_key:$('#iaKey').value,modelo:$('#iaModel').value})});
     $('#iaKey').value='';if(j.clave)$('#iaKey').placeholder=j.clave+' (guardada)';msg($('#iaMsg'),j.proveedor==='plataforma'?'✓ Usando la IA de Marcia':'✓ Conectado con tu cuenta',1)}catch(e){msg($('#iaMsg'),e.message)}finally{$('#iaSave').disabled=false}};
+/* ---------- tablero de pedidos ---------- */
+const DESP={{ despacho|tojson }}, NEG={{ d.nombre|tojson }}, BASE=location.origin;
+let PEDS=[],EST=[],ETQ={},FILTRO='activos',VISTOS=null;
+const SIG={nuevo:'confirmado',confirmado:TURNOS?'completado':'preparando',preparando:'listo',listo:'en_camino',en_camino:'entregado'};
+const fmt$=n=>'$'+Number(n).toLocaleString('es-AR');
+const escH=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const hace=ts=>{const m=Math.floor((Date.now()/1000-ts)/60);return m<1?'recién':m<60?`hace ${m} min`:m<1440?`hace ${Math.floor(m/60)} h`:new Date(ts*1000).toLocaleDateString('es-AR')};
+const tel=x=>{let d=String(x||'').replace(/\D/g,'');if(d.startsWith('0'))d=d.slice(1);if(d.length===10)d='549'+d;return d};
+const PAGO={efectivo:'Efectivo',mercadopago:'Mercado Pago',transferencia:'Transferencia'};
+const ACTIVOS=p=>!['entregado','completado','cancelado','ausente'].includes(p.estado);
+function comanda(p){return `*${NEG} · ${TURNOS?'Turno':'Pedido'} #${p.id}*\n`+(p.cuando?`📅 ${p.cuando}\n`:'')+p.detalle.map(x=>`• ${x.cantidad}× ${x.nombre}`).join('\n')+
+  `\nTotal: ${fmt$(p.total)} (${PAGO[p.pago]||p.pago}${p.pagado?', pagado':''})\nCliente: ${p.cliente}${p.contacto?' · '+p.contacto:''}`+(p.nota?`\n📝 ${p.nota}`:'')}
+function msgCliente(p){return `Hola ${p.cliente}! Te escribimos de ${NEG} 👋 Tu ${TURNOS?'turno':'pedido'} #${p.id} está: *${ETQ[p.estado]}*. Seguilo en vivo: ${BASE}/n/${SLUG}/pedido/${p.id}?k=${p.seguimiento}`}
+function card(p){
+  const sig=SIG[p.estado];
+  return `<div class="oc card ${p.estado}" data-id="${p.id}">
+   <div class="top1"><span class="n">#${p.id}</span><span class="badge">${escH(ETQ[p.estado]||p.estado)}</span><span class="ago">${hace(p.creado)}</span></div>
+   <div class="cli"><b>${escH(p.cliente)}</b>${p.contacto?` <span class="muted">· ${escH(p.contacto)}</span>`:''}</div>
+   <ul>${p.detalle.map(x=>`<li>${x.cantidad}× ${escH(x.nombre)}</li>`).join('')}</ul>
+   <div class="meta">${p.cuando?`<span style="color:var(--lime);font-weight:700">📅 ${escH(p.cuando)}</span>`:''}${p.nota?`<span>📝 ${escH(p.nota)}</span>`:''}</div>
+   <div class="tot"><button class="pay" data-pay title="Marcar pago">💳 ${PAGO[p.pago]||escH(p.pago)} · ${p.pagado?'<span class="ok-pay">✓ Pagado</span>':'<span class="no-pay">Pendiente</span>'}</button><b class="price">${fmt$(p.total)}</b></div>
+   <div class="acc">
+     ${sig?`<button class="btn btn-neon" data-est="${sig}">${ETQ[sig]} →</button>`:''}
+     ${p.contacto?`<a class="btn btn-ghost" target="_blank" rel="noopener" href="https://wa.me/${tel(p.contacto)}?text=${encodeURIComponent(msgCliente(p))}">💬 Avisar al cliente</a>`:''}
+     ${DESP.whatsapp?`<a class="btn btn-ghost" target="_blank" rel="noopener" href="https://wa.me/${tel(DESP.whatsapp)}?text=${encodeURIComponent(comanda(p))}">🍳 WhatsApp cocina</a>`:''}
+     <a class="btn btn-ghost" href="mailto:${encodeURIComponent(DESP.email||'')}?subject=${encodeURIComponent(NEG+' · Pedido #'+p.id)}&body=${encodeURIComponent(comanda(p).replace(/\*/g,''))}">✉️ Email</a>
+     <button class="btn btn-ghost" data-print>🖨️ Comanda</button>
+     ${ACTIVOS(p)?`<button class="btn btn-ghost" data-est="${TURNOS&&p.estado==='confirmado'?'ausente':'cancelado'}" style="color:#ff8fab">${TURNOS&&p.estado==='confirmado'?'No asistió':'Cancelar'}</button>`:''}
+   </div></div>`;
+}
+function renderPeds(){
+  const cnt={activos:PEDS.filter(ACTIVOS).length,todos:PEDS.length};EST.forEach(e=>cnt[e]=PEDS.filter(p=>p.estado===e).length);
+  $('#filtros').innerHTML=['activos',...EST,'todos'].filter(f=>f==='activos'||f==='todos'||cnt[f]).map(f=>`<button data-f="${f}" class="${f===FILTRO?'on':''}">${f==='activos'?'Activos':f==='todos'?'Todos':ETQ[f]}<b>${cnt[f]}</b></button>`).join('');
+  const l=PEDS.filter(p=>FILTRO==='todos'||(FILTRO==='activos'?ACTIVOS(p):p.estado===FILTRO));
+  $('#lista').innerHTML=l.length?l.map(card).join(''):`<div class="empty card">No hay ${TURNOS?'turnos':'pedidos'} acá. Compartí tu link: <a href="/n/${SLUG}" target="_blank">/n/${SLUG}</a></div>`;
+  $('#kAct').textContent=cnt.activos;
+  const hoy=new Date().toDateString();$('#kHoy').textContent=fmt$(PEDS.filter(p=>p.estado!=='cancelado'&&new Date(p.creado*1000).toDateString()===hoy).reduce((a,p)=>a+p.total,0));
+}
+function beep(){try{const a=new(window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=880;g.gain.value=.08;o.start();setTimeout(()=>{o.frequency.value=1320},150);setTimeout(()=>o.stop(),320)}catch(e){}}
+async function cargarPeds(){
+  try{const j=await api('pedidos');PEDS=j.pedidos;EST=j.estados;ETQ=j.etiquetas;
+    const ids=new Set(PEDS.map(p=>p.id));
+    if(VISTOS&&[...ids].some(i=>!VISTOS.has(i))){beep();document.title='🔔 Nuevo pedido · '+NEG;setTimeout(()=>document.title='Panel · '+NEG,6000)}
+    VISTOS=ids;renderPeds()}catch(e){}
+}
+$('#filtros').onclick=e=>{const b=e.target.closest('[data-f]');if(b){FILTRO=b.dataset.f;renderPeds()}};
+$('#lista').onclick=async e=>{
+  const c=e.target.closest('.oc');if(!c)return;const id=c.dataset.id;
+  const b=e.target.closest('[data-est]');
+  if(b){b.disabled=true;try{const p=await api(`pedidos/${id}/estado`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({estado:b.dataset.est})});PEDS=PEDS.map(x=>x.id===p.id?p:x);renderPeds()}catch(er){b.disabled=false;alert(er.message)}return}
+  if(e.target.closest('[data-pay]')){const p=await api(`pedidos/${id}/pagado`,{method:'PUT'});PEDS=PEDS.map(x=>x.id===p.id?p:x);renderPeds();return}
+  if(e.target.closest('[data-print]')){c.classList.add('printing');window.print();setTimeout(()=>c.classList.remove('printing'),500)}
+};
+cargarPeds();setInterval(()=>{if(!document.hidden)cargarPeds()},8000);
+$('#dSave').onclick=async()=>{try{const j=await api('despacho',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:$('#dHook').value,cocina_whatsapp:$('#dWa').value,cocina_email:$('#dMail').value})});
+  DESP.whatsapp=j.whatsapp;DESP.email=j.email;$('#dSec').textContent=j.secreto;renderPeds();msg($('#dMsg'),'✓ Guardado',1)}catch(e){msg($('#dMsg'),e.message)}};
 $('#saveInfo').onclick=async()=>{const v=id=>{const el=$(id);return el?el.value:''};
   try{await api('info',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({envio:v('#iEnv'),demora:v('#iDem'),condiciones:v('#iCon'),faq:v('#iFaq')})});msg($('#infoMsg'),'✓ Guardado',1)}catch(e){msg($('#infoMsg'),e.message)}};
 $('#savePay').onclick=async()=>{

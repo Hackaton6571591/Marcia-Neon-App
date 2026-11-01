@@ -192,7 +192,7 @@ def validar(datos: dict) -> dict:
         except (KeyError, ValueError, TypeError):
             continue
     if items:
-        ok["items"] = items[:40]
+        ok["items"] = items[:200]
     return ok
 
 
@@ -203,22 +203,44 @@ URL_RE = re.compile(r"(https?://[^\s]+|(?:www\.)?(?:instagram\.com|[a-z0-9-]+\.(
 
 async def procesar(d: dict, texto: str, historia: list[dict], sesion: str = "") -> tuple[dict, str, str]:
     """Devuelve (datos_actualizados, respuesta, proveedor)."""
-    # si comparte su web o Instagram, sacamos logo e imagen de portada
+    # si comparte su web o Instagram: importamos productos (si es una tienda) + logo e imagen de portada
     m = URL_RE.search(texto)
-    if m and not d.get("logo"):
-        from .importar import extraer_marca
-        try:
-            marca = await extraer_marca(m.group(1).rstrip(".,)"), "s" + re.sub(r"\W", "", sesion)[:12])
-        except Exception as ex:
-            log.warning("No se pudo leer la marca: %s", ex)
-            marca = {}
-        texto = URL_RE.sub("", texto).strip(" ,.") or texto
-        if marca.get("logo") or marca.get("portada"):
-            d = {**d, **{k: v for k, v in marca.items() if k in ("web", "logo", "portada")}}
-            if not URL_RE.sub("", m.string).strip(" ,."):
-                return d, "¡Qué lindo! 📸 Ya tomé tu logo e imagen para tu página. " + pregunta(d), "simulado"
-        elif not URL_RE.sub("", m.string).strip(" ,."):
-            return d, "No pude sacar imágenes de ese link (Instagram a veces lo bloquea) 😕 Igual podés subir tu logo después desde el panel. " + pregunta(d), "simulado"
+    if m:
+        import asyncio
+        from . import importar
+        url = m.group(1).rstrip(".,)")
+        pref = "s" + re.sub(r"\W", "", sesion)[:12]
+        servicio = (d.get("blueprint") == "turnos")
+        tareas = [importar.importar(url, servicio, pref)]
+        if not d.get("logo"):
+            tareas.append(importar.extraer_marca(url, pref))
+        res = await asyncio.gather(*tareas, return_exceptions=True)
+        items, origen = res[0] if not isinstance(res[0], Exception) else ([], "")
+        marca = res[1] if len(res) > 1 and not isinstance(res[1], Exception) else {}
+        d = {**d, **{k: v for k, v in marca.items() if k in ("web", "logo", "portada")}}
+        partes = []
+        if items:
+            d["items"] = items
+            if not d.get("blueprint"):
+                d["blueprint"] = "comercio"
+            con_foto = sum(1 for i in items if i.get("imagen"))
+            partes.append(f"📦 ¡Encontré **{len(items)} productos** en tu web" + (f" ({con_foto} con foto)" if con_foto else "") + "! Ya están en tu vista previa.")
+        if marca.get("logo"):
+            partes.append("📸 También tomé tu logo.")
+        resto = URL_RE.sub("", texto).strip(" ,.")
+        if items:
+            resto = ""  # el texto que acompaña al link ("mirá mi web") no es un dato del negocio
+        if partes and not resto:
+            return d, " ".join(partes) + " " + pregunta(d), "simulado"
+        if not partes and not resto:
+            ig = "instagram.com" in url.lower()
+            return d, (("Instagram no deja leer perfiles sin iniciar sesión 😕 Subí tu logo desde el panel (o lo conectamos con la API oficial de Instagram). " if ig else
+                        "No pude leer productos de ese link 😕 (algunas tiendas lo bloquean). ") + "Podés pasarme productos a mano, "
+                       "subir una **foto de tu menú** 📷 o un CSV desde el panel. " + pregunta(d)), "simulado"
+        texto = resto or texto
+        aviso_import = " ".join(partes)
+
+    aviso_import = locals().get("aviso_import", "")
     # Híbrido (lo más barato): si el mensaje encaja en el flujo, responden las reglas (costo 0).
     # Solo si el usuario se sale del flujo (pregunta, duda, algo inesperado) responde DeepSeek, amigable.
     simulado = extraer_simulado(d, texto)
@@ -242,4 +264,6 @@ async def procesar(d: dict, texto: str, historia: list[dict], sesion: str = "") 
         respuesta = pregunta(d)
     elif despues == antes and proveedor == "simulado":
         respuesta = "Mmm, no lo terminé de entender 🤔 " + pregunta(d)
+    if aviso_import:
+        respuesta = aviso_import + "\n\n" + (pregunta(d) if proveedor == "simulado" else respuesta)
     return d, respuesta, proveedor

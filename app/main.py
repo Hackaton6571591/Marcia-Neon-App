@@ -68,6 +68,10 @@ def init_db():
         cols = [r[1] for r in c.execute("PRAGMA table_info(pedidos)")]
         if "pago" not in cols:
             c.execute("ALTER TABLE pedidos ADD COLUMN pago TEXT")
+        for col, tipo in (("pagado", "INT DEFAULT 0"), ("seguimiento", "TEXT"), ("historial", "TEXT"), ("actualizado", "INT")):
+            if col not in cols:
+                c.execute(f"ALTER TABLE pedidos ADD COLUMN {col} {tipo}")
+        c.execute("UPDATE pedidos SET pagado=1, estado='nuevo' WHERE estado='pagado'")
 
 
 # ---------- rate limit simple en memoria ----------
@@ -272,11 +276,15 @@ async def _registrar_pedido(request, slug, row, d, bp, items: dict, cliente, con
     if pago not in pagos:
         raise HTTPException(400, "Medio de pago no disponible.")
     with db() as c:
-        cur = c.execute("INSERT INTO pedidos(negocio_id,tipo,cliente,contacto,detalle,total,cuando,nota,pago,creado) "
-                        "VALUES(?,?,?,?,?,?,?,?,?,?)",
+        ahora = int(time.time())
+        seg = secrets.token_urlsafe(10)
+        cur = c.execute("INSERT INTO pedidos(negocio_id,tipo,cliente,contacto,detalle,total,cuando,nota,pago,creado,"
+                        "estado,seguimiento,historial,actualizado) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                         (row["id"], bp["modo"], cliente[:60], (contacto or "")[:40], json.dumps(detalle, ensure_ascii=False),
-                         total, cuando or "", (nota or "")[:300], pago, int(time.time())))
+                         total, cuando or "", (nota or "")[:300], pago, ahora, "nuevo", seg,
+                         json.dumps([{"estado": "nuevo", "ts": ahora}]), ahora))
     numero = cur.lastrowid
+    _webhook(d, "pedido.creado", _pedido_publico(numero))
     if any(d["items"][int(k)].get("stock") is not None for k in items if 0 <= int(k) < len(d["items"])):
         for k, cant in items.items():  # descontar stock
             it = d["items"][int(k)]
@@ -288,7 +296,7 @@ async def _registrar_pedido(request, slug, row, d, bp, items: dict, cliente, con
         base = os.getenv("BASE_URL", "").rstrip("/") or str(request.base_url).rstrip("/").replace("http://", "https://")
         pago_url = await mercadopago.crear_preferencia(numero, d["nombre"], detalle, base, slug)
     return {"numero": numero, "total": total, "detalle": detalle, "pago": pago,
-            "pago_info": pagos[pago], "pago_url": pago_url}
+            "pago_info": pagos[pago], "pago_url": pago_url, "seguimiento": f"/n/{slug}/pedido/{numero}?k={seg}"}
 
 
 class ChatMsg(BaseModel):
@@ -359,7 +367,8 @@ def _mensaje_confirmacion(d, bp, e, p) -> str:
     else:
         retira = "retira" in (e["cliente"].get("direccion") or "").lower()
         msg += "💵 Pagás en efectivo " + ("en el local." if turnos or retira else "al recibir.")
-    return msg + f"\n\n¡Gracias, {e['cliente']['nombre']}! {d['nombre']} ya lo tiene en su panel 💜"
+    base = os.getenv("BASE_URL", "").rstrip("/")
+    return msg + f"\n\n📍 Seguí tu pedido en vivo: {base}{p['seguimiento']}\n\n¡Gracias, {e['cliente']['nombre']}! {d['nombre']} ya lo tiene en su panel 💜"
 
 
 @app.post("/api/mp/webhook")
@@ -376,7 +385,7 @@ async def mp_webhook(request: Request):
         status, ref = await mercadopago.consultar_pago(pid)
         if status == "approved" and ref and ref.isdigit():
             with db() as c:
-                c.execute("UPDATE pedidos SET estado='pagado' WHERE id=? AND pago='mercadopago'", (int(ref),))
+                c.execute("UPDATE pedidos SET pagado=1 WHERE id=? AND pago='mercadopago'", (int(ref),))
     return {"ok": True}
 
 
@@ -480,7 +489,153 @@ def panel(request: Request, slug: str, t: str = ""):
                 c.execute("SELECT * FROM pedidos WHERE negocio_id=? ORDER BY id DESC LIMIT 200", (row["id"],))]
     return tpl.TemplateResponse(request, "panel.html", {"slug": slug, "d": d, "bp": bp, "pedidos": peds,
                                                          "token": t, "pagos_cfg": d.get("pagos") or {"efectivo": True, "mp": True},
-                                                         "mp_activo": mercadopago.activo()})
+                                                         "mp_activo": mercadopago.activo(),
+                                                         "despacho": d.get("despacho") or {}, "webhook": d.get("webhook") or {}})
+
+
+# ---------- gestión profesional de pedidos ----------
+
+ESTADOS = {
+    "pedidos": ["nuevo", "confirmado", "preparando", "listo", "en_camino", "entregado", "cancelado"],
+    "turnos": ["nuevo", "confirmado", "completado", "ausente", "cancelado"],
+}
+ETIQUETAS = {"nuevo": "Nuevo", "confirmado": "Confirmado", "preparando": "En preparación", "listo": "Listo",
+             "en_camino": "En camino", "entregado": "Entregado", "cancelado": "Cancelado",
+             "completado": "Completado", "ausente": "No asistió"}
+
+
+def _pedido_publico(pid: int) -> dict:
+    with db() as c:
+        r = c.execute("SELECT * FROM pedidos WHERE id=?", (pid,)).fetchone()
+    p = dict(r)
+    p["detalle"] = json.loads(p["detalle"])
+    p["historial"] = json.loads(p.get("historial") or "[]")
+    p["estado_txt"] = ETIQUETAS.get(p["estado"], p["estado"])
+    return p
+
+
+def _webhook(d: dict, evento: str, pedido: dict):
+    """Envía el pedido al sistema del negocio (cocina, ERP, delivery). Firmado con HMAC-SHA256. No bloquea."""
+    cfg = d.get("webhook") or {}
+    if not cfg.get("url"):
+        return
+    import asyncio
+    import hashlib
+    import hmac
+
+    async def enviar():
+        cuerpo = json.dumps({"evento": evento, "negocio": d["nombre"], "pedido":
+                             {k: pedido.get(k) for k in ("id", "estado", "cliente", "contacto", "detalle", "total", "cuando",
+                                                         "nota", "pago", "pagado", "creado")}}, ensure_ascii=False).encode()
+        firma = hmac.new(cfg.get("secreto", "").encode(), cuerpo, hashlib.sha256).hexdigest()
+        try:
+            if not importar._segura(cfg["url"]):
+                return
+            import httpx
+            async with httpx.AsyncClient(timeout=8, follow_redirects=False) as cl:
+                await cl.post(cfg["url"], content=cuerpo, headers={"Content-Type": "application/json",
+                                                                  "X-Marcia-Evento": evento, "X-Marcia-Firma": firma})
+        except Exception as ex:
+            logging.getLogger("marcia.webhook").warning("Webhook falló: %s", ex)
+
+    try:
+        asyncio.get_running_loop().create_task(enviar())
+    except RuntimeError:
+        pass
+
+
+@app.get("/api/panel/{slug}/pedidos")
+def listar_pedidos(slug: str, t: str = ""):
+    row, d, bp = _auth(slug, t)
+    with db() as c:
+        ids = [r[0] for r in c.execute("SELECT id FROM pedidos WHERE negocio_id=? ORDER BY id DESC LIMIT 200", (row["id"],))]
+    return {"pedidos": [_pedido_publico(i) for i in ids], "estados": ESTADOS[bp["modo"]], "etiquetas": ETIQUETAS}
+
+
+class CambioEstado(BaseModel):
+    estado: str = Field(..., max_length=20)
+
+
+@app.put("/api/panel/{slug}/pedidos/{pid}/estado")
+def cambiar_estado(slug: str, pid: int, body: CambioEstado, t: str = ""):
+    row, d, bp = _auth(slug, t)
+    if body.estado not in ESTADOS[bp["modo"]]:
+        raise HTTPException(400, "Estado inválido.")
+    with db() as c:
+        r = c.execute("SELECT historial, detalle, estado FROM pedidos WHERE id=? AND negocio_id=?", (pid, row["id"])).fetchone()
+        if not r:
+            raise HTTPException(404)
+        ahora = int(time.time())
+        hist = json.loads(r["historial"] or "[]") + [{"estado": body.estado, "ts": ahora}]
+        c.execute("UPDATE pedidos SET estado=?, historial=?, actualizado=? WHERE id=?",
+                  (body.estado, json.dumps(hist), ahora, pid))
+        if body.estado == "cancelado" and r["estado"] != "cancelado":  # devolver stock
+            cambio = False
+            for x in json.loads(r["detalle"]):
+                for it in d["items"]:
+                    if it["nombre"] == x["nombre"] and it.get("stock") is not None:
+                        it["stock"] = int(it["stock"]) + int(x["cantidad"])
+                        cambio = True
+            if cambio:
+                c.execute("UPDATE negocios SET datos=? WHERE id=?", (json.dumps(d, ensure_ascii=False), row["id"]))
+    p = _pedido_publico(pid)
+    _webhook(d, "pedido.estado", p)
+    return p
+
+
+@app.put("/api/panel/{slug}/pedidos/{pid}/pagado")
+def marcar_pagado(slug: str, pid: int, t: str = ""):
+    row, d, bp = _auth(slug, t)
+    with db() as c:
+        c.execute("UPDATE pedidos SET pagado=1-COALESCE(pagado,0) WHERE id=? AND negocio_id=?", (pid, row["id"]))
+    return _pedido_publico(pid)
+
+
+class Webhook(BaseModel):
+    url: str = Field("", max_length=300)
+    cocina_whatsapp: str = Field("", max_length=30)
+    cocina_email: str = Field("", max_length=120)
+
+
+@app.put("/api/panel/{slug}/despacho")
+def guardar_despacho(slug: str, w: Webhook, t: str = ""):
+    """A dónde mandar cada pedido: WhatsApp/email de cocina y webhook (API) del sistema del negocio."""
+    row, d, bp = _auth(slug, t)
+    url = w.url.strip()
+    if url and (not url.startswith("https://") or not importar._segura(url)):
+        raise HTTPException(400, "El webhook debe ser una URL https pública.")
+    actual = d.get("webhook") or {}
+    d["webhook"] = {"url": url, "secreto": actual.get("secreto") or secrets.token_hex(16)}
+    d["despacho"] = {"whatsapp": re.sub(r"[^\d]", "", w.cocina_whatsapp), "email": w.cocina_email.strip()}
+    _guardar(row["id"], d)
+    return {"webhook": url, "secreto": d["webhook"]["secreto"], **d["despacho"]}
+
+
+# ---------- seguimiento del pedido (cliente) ----------
+
+def _pedido_cliente(slug, pid, k):
+    row, d, bp = _negocio(slug)
+    with db() as c:
+        r = c.execute("SELECT seguimiento FROM pedidos WHERE id=? AND negocio_id=?", (pid, row["id"])).fetchone()
+    if not r or not r["seguimiento"] or not secrets.compare_digest(k, r["seguimiento"]):
+        raise HTTPException(404, "Pedido no encontrado")
+    p = _pedido_publico(pid)
+    for campo in ("contacto", "seguimiento", "negocio_id"):
+        p.pop(campo, None)
+    return row, d, bp, p
+
+
+@app.get("/api/n/{slug}/pedido/{pid}")
+def seguimiento_json(slug: str, pid: int, k: str = ""):
+    row, d, bp, p = _pedido_cliente(slug, pid, k)
+    return {"pedido": p, "estados": [e for e in ESTADOS[bp["modo"]] if e not in ("cancelado", "ausente")],
+            "etiquetas": ETIQUETAS}
+
+
+@app.get("/n/{slug}/pedido/{pid}", response_class=HTMLResponse)
+def seguimiento(request: Request, slug: str, pid: int, k: str = ""):
+    row, d, bp, p = _pedido_cliente(slug, pid, k)
+    return tpl.TemplateResponse(request, "seguimiento.html", {"slug": slug, "d": d, "bp": bp, "p": p, "k": k})
 
 
 # ---------- panel: productos, CSV, medios de pago ----------
@@ -664,6 +819,57 @@ async def subir_imagen_producto(slug: str, request: Request, t: str = ""):
     return {"url": f"/media/{nombre}"}
 
 
+async def _leer_foto(request: Request) -> tuple[bytes, str]:
+    tipo = request.headers.get("content-type", "").split(";")[0].lower()
+    if tipo not in ("image/png", "image/jpeg", "image/webp"):
+        raise HTTPException(400, "Subí una foto PNG, JPG o WEBP.")
+    data = await request.body()
+    if not (100 < len(data) <= 6_000_000):
+        raise HTTPException(400, "La foto debe pesar menos de 6 MB.")
+    return data, tipo
+
+
+@app.post("/api/launcher/sesion/{sid}/foto")
+async def launcher_foto(sid: str, request: Request):
+    """Foto del menú en el launcher: DeepSeek la lee y carga los productos."""
+    limitar(request, 4, "foto")
+    data, tipo = await _leer_foto(request)
+    with db() as c:
+        row = c.execute("SELECT datos, historia FROM sesiones WHERE id=?", (sid,)).fetchone()
+    if not row:
+        raise HTTPException(404)
+    d = json.loads(row["datos"])
+    try:
+        items = await importar.desde_foto(data, tipo, d.get("blueprint") == "turnos", ia.credenciales())
+    except Exception:
+        raise HTTPException(400, "No pude leer la foto 😕 Probá con una más nítida o pasame los productos escritos.")
+    if not items:
+        raise HTTPException(400, "No encontré productos con precio en la foto.")
+    d["items"] = items
+    d.setdefault("blueprint", "comercio")
+    resp = f"📷 ¡Leí tu menú! Cargué **{len(items)} productos**. Revisalos en la vista previa. " + launcher.pregunta(d)
+    hist = (json.loads(row["historia"]) + [{"role": "user", "content": "[foto del menú]"}, {"role": "assistant", "content": resp}])[-12:]
+    with db() as c:
+        c.execute("UPDATE sesiones SET datos=?, historia=? WHERE id=?", (json.dumps(d, ensure_ascii=False), json.dumps(hist, ensure_ascii=False), sid))
+    return _estado(sid, d, "deepseek", resp)
+
+
+@app.post("/api/panel/{slug}/foto-menu")
+async def panel_foto_menu(slug: str, request: Request, t: str = "", reemplazar: bool = False):
+    limitar(request, 4, "foto")
+    row, d, bp = _auth(slug, t)
+    data, tipo = await _leer_foto(request)
+    try:
+        items = await importar.desde_foto(data, tipo, bp["modo"] == "turnos", ia.credenciales(_secreto(row["id"])))
+    except Exception:
+        raise HTTPException(400, "No pude leer la foto. Probá con una más nítida.")
+    if not items:
+        raise HTTPException(400, "No encontré productos con precio en la foto.")
+    d["items"] = (items if reemplazar else d.get("items", []) + items)[:200]
+    _guardar(row["id"], d)
+    return {"importados": len(items), "items": d["items"]}
+
+
 class ImportarURL(BaseModel):
     url: str = Field(..., min_length=4, max_length=500)
     reemplazar: bool = False
@@ -674,7 +880,7 @@ async def importar_url(slug: str, body: ImportarURL, request: Request, t: str = 
     limitar(request, 5, "importar")
     row, d, bp = _auth(slug, t)
     try:
-        nuevos, ia = await importar.importar(body.url.strip(), bp["modo"] == "turnos")
+        nuevos, ia = await importar.importar(body.url.strip(), bp["modo"] == "turnos", f"n{row['id']}-i{secrets.token_hex(2)}")
     except ValueError as ex:
         raise HTTPException(400, str(ex))
     except Exception:

@@ -41,6 +41,13 @@ Una **solución de ecommerce simplificada y hecha a medida** para el negocio, cr
 | Mercado Pago habilitado por defecto junto con efectivo | ✅ |
 | Fotos reales de productos generadas con IA (ChatGPT/DALL·E) | 🔜 (requiere clave; hoy ilustraciones automáticas) |
 | WhatsApp Business API | 🔜 (placeholder en panel) |
+| Panel de pedidos en vivo con estados, pago, comanda por WhatsApp/email/impresión | ✅ |
+| Webhook firmado (API) a sistemas de cocina/ERP/delivery | ✅ |
+| Seguimiento del pedido en vivo para el cliente | ✅ |
+| Importar productos de tiendas online (APIs JSON, Shopify, WooCommerce) con fotos | ✅ |
+| Foto del menú → productos (DeepSeek visión) | ✅ |
+| Logo desde Instagram vía Instagram Graph API oficial | 🔜 |
+| Integraciones PedidosYa / Uber Eats / Rappi | 🔜 (ver panel → Integraciones) |
 | CRM de clientes (historial, recompra) | 🔜 |
 | Turnos: sin superposición (según duración del servicio), no se reserva en el pasado | ✅ |
 | Turnos: la tienda muestra las franjas ocupadas del día elegido | ✅ |

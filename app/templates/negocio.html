@@ -166,7 +166,7 @@ $('#go').onclick=async()=>{
       <p class="muted">${turnos?'Reserva':'Pedido'} #${j.numero}${turnos?' para el '+body.cuando.replace(' ',' a las '):''}</p>
       <div style="text-align:left;max-width:360px;margin:16px auto">${j.detalle.map(x=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--line)"><span>${x.cantidad}× ${esc(x.nombre)}</span><span class="price">${fmt(x.precio*x.cantidad)}</span></div>`).join('')}
       <div style="display:flex;justify-content:space-between;padding-top:8px;font-weight:800"><span>Total</span><span>${fmt(j.total)}</span></div></div>
-      ${payHTML(j)}<p class="muted">El negocio ya lo tiene en su panel. ¡Gracias!</p><a class="btn btn-ghost" href="">Hacer otro</a></div>`;
+      ${payHTML(j)}<a class="btn btn-neon" href="${esc(j.seguimiento)}" style="width:100%;margin:10px 0">📍 Seguir mi pedido en vivo</a><p class="muted">El negocio ya lo tiene en su panel. ¡Gracias!</p><a class="btn btn-ghost" href="">Hacer otro</a></div>`;
     document.querySelector('.bar').remove();
   }catch(e){$('#err').textContent='Sin conexión, probá de nuevo.';$('#go').disabled=false}
 };
@@ -201,6 +201,7 @@ async function enviar(texto){
     if(j.paso!=='hecho'){for(const k in sel)delete sel[k];Object.entries(j.carrito||{}).forEach(([k,v])=>sel[k]=v);upd()}  // catálogo integrado
     $('#cpill').hidden=!n||j.paso==='hecho';$('#cpTxt').textContent=`🛒 ${n} ${n===1?'ítem':'ítems'}`;$('#cpTot').textContent=fmt(j.total||0);
     if(j.pedido&&j.pedido.pago_url){add('a',`<a class="btn btn-neon" href="${esc(j.pedido.pago_url)}">Pagar con Mercado Pago →</a>`)}
+    if(j.pedido&&j.pedido.seguimiento){add('a',`<a class="btn btn-neon" href="${esc(j.pedido.seguimiento)}">📍 Seguir mi pedido en vivo</a>`)}
     quick(j.paso==='hecho'?['Hacer otro pedido']:j.paso==='confirmar'?['Sí, confirmo','Quiero cambiar algo']:j.paso==='datos'?[]:n?['Nada más, confirmar','Ver el menú']:QUICK);
   }catch(e){typ.remove();add('a','Sin conexión, probá de nuevo.')}
   finally{busy=false;if(matchMedia('(min-width:601px)').matches)ci.focus()}

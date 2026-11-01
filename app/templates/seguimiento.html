@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Pedido #{{ p.id }} · {{ d.nombre }}</title><meta name="robots" content="noindex">
+<link rel="stylesheet" href="/static/marcia.css"><meta name="theme-color" content="#07060f">
+<style>
+.wrap{max-width:560px;margin:0 auto;padding:20px max(16px,env(safe-area-inset-right,0px)) 40px max(16px,env(safe-area-inset-left,0px))}
+.head{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.head img,.head .ava{width:48px;height:48px;border-radius:14px;object-fit:cover}
+.status{padding:24px 20px;text-align:center;border-radius:24px;border:1px solid var(--line);background:radial-gradient(circle at 50% 0,rgba(255,61,203,.28),transparent 60%),#0b0a16}
+.status .big{font-size:3.2rem;line-height:1;animation:bob 2.4s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-6px)}}
+.status h1{margin:12px 0 4px;font-size:1.6rem;letter-spacing:-.02em}
+.steps{margin:22px 0 8px;display:grid;gap:0}
+.st{display:grid;grid-template-columns:28px 1fr auto;gap:12px;align-items:start;position:relative;padding-bottom:18px}
+.st:not(:last-child)::before{content:"";position:absolute;left:13px;top:26px;bottom:0;width:2px;background:var(--line)}
+.st.done:not(:last-child)::before{background:var(--grad)}
+.dot{width:28px;height:28px;border-radius:50%;border:2px solid var(--line);background:#0d0b1a;display:grid;place-items:center;font-size:.8rem;z-index:1}
+.st.done .dot{background:var(--grad);border:0;color:#0b0716;font-weight:900}
+.st.now .dot{box-shadow:0 0 0 6px rgba(255,61,203,.18),0 0 20px var(--pink)}
+.st b{display:block}.st small{color:var(--muted)}
+.box{padding:16px;margin-top:14px}
+.row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dashed var(--line)}
+.row:last-child{border:0}
+.cancel{border-color:rgba(255,107,139,.5)!important;background:rgba(255,107,139,.08)!important}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);margin-top:10px}
+.live i{width:7px;height:7px;border-radius:50%;background:var(--lime);box-shadow:0 0 8px var(--lime);animation:pl 1.6s infinite}
+@keyframes pl{50%{opacity:.3}}
+</style></head><body>
+<div class="wrap">
+  <div class="head">{% if d.logo %}<img src="{{ d.logo }}" alt="">{% else %}<div class="ava">{{ d.nombre[:1]|upper }}</div>{% endif %}
+    <div><b>{{ d.nombre }}</b><div class="muted" style="font-size:.85rem">{{ 'Reserva' if bp.modo == 'turnos' else 'Pedido' }} #{{ p.id }}</div></div></div>
+  <div class="status" id="status"></div>
+  <div class="steps" id="steps"></div>
+  <div class="box card">
+    {% for x in p.detalle %}<div class="row"><span>{{ x.cantidad }}× {{ x.nombre }}</span><span class="price">${{ "{:,}".format(x.precio * x.cantidad).replace(",", ".") }}</span></div>{% endfor %}
+    <div class="row"><b>Total</b><b class="price">${{ "{:,}".format(p.total).replace(",", ".") }}</b></div>
+  </div>
+  <div class="box card muted" style="font-size:.9rem">
+    {% if p.cuando %}📅 {{ p.cuando }}<br>{% endif %}{% if p.nota %}📝 {{ p.nota }}<br>{% endif %}
+    💳 {{ {'efectivo':'Efectivo','mercadopago':'Mercado Pago','transferencia':'Transferencia'}.get(p.pago, p.pago) }} · <span id="pagado"></span>
+    {% if d.telefono %}<br>📞 ¿Dudas? Llamá al {{ d.telefono }}{% endif %}
+  </div>
+  <p style="text-align:center"><a href="/n/{{ slug }}">← Volver a {{ d.nombre }}</a></p>
+</div>
+<script>
+(()=>{
+const URL_API={{ ('/api/n/' ~ slug ~ '/pedido/' ~ p.id ~ '?k=' ~ k)|tojson }};
+const ICON={nuevo:'📨',confirmado:'✅',preparando:'👨‍🍳',listo:'🛍️',en_camino:'🛵',entregado:'🎉',completado:'🎉',cancelado:'❌',ausente:'⚠️'};
+const MSG={nuevo:'Recibimos tu pedido. El local lo está revisando.',confirmado:'¡El local confirmó tu pedido!',preparando:'Tu pedido se está preparando.',listo:'¡Tu pedido está listo!',en_camino:'Tu pedido va en camino.',entregado:'¡Entregado! Que lo disfrutes.',completado:'¡Gracias por venir!',cancelado:'El pedido fue cancelado. Si tenés dudas, contactá al local.',ausente:'El turno quedó marcado como no asistido.'};
+const hora=ts=>new Date(ts*1000).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+let ultimo='';
+function render(j){
+  const p=j.pedido, est=j.estados, et=j.etiquetas, i=est.indexOf(p.estado), canc=p.estado==='cancelado'||p.estado==='ausente';
+  const st=document.getElementById('status');
+  st.className='status'+(canc?' cancel':'');
+  st.innerHTML=`<div class="big">${ICON[p.estado]||'📦'}</div><h1>${et[p.estado]||p.estado}</h1><div class="muted">${MSG[p.estado]||''}</div>${canc||['entregado','completado'].includes(p.estado)?'':'<div class="live"><i></i>Se actualiza solo</div>'}`;
+  const hts={};(p.historial||[]).forEach(h=>hts[h.estado]=h.ts);
+  document.getElementById('steps').innerHTML=canc?'':est.map((e,k)=>`<div class="st ${k<=i?'done':''} ${k===i?'now':''}"><div class="dot">${k<=i?'✓':k+1}</div><div><b>${et[e]}</b><small>${MSG[e]}</small></div><small>${hts[e]?hora(hts[e]):''}</small></div>`).join('');
+  document.getElementById('pagado').textContent=p.pagado?'✓ Pagado':'Pendiente de pago';
+  if(ultimo&&ultimo!==p.estado&&navigator.vibrate)navigator.vibrate(200);
+  ultimo=p.estado;
+}
+async function cargar(){try{const r=await fetch(URL_API);if(r.ok)render(await r.json())}catch(e){}}
+document.getElementById('status').innerHTML='<div class="big">📦</div><h1>Cargando…</h1>';
+cargar();setInterval(()=>{if(!document.hidden&&!['entregado','completado','cancelado','ausente'].includes(ultimo))cargar()},8000);
+})();
+</script>
+</body></html>
